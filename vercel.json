@@ -1,0 +1,10 @@
+{
+  "name": "edison-yang-studio",
+  "cleanUrls": true,
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
