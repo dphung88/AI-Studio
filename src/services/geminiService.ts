@@ -147,24 +147,19 @@ Return ONLY a JSON array of ${targetSceneCount} objects.
 Format: [{"sceneNumber": 1, "action": "...", "characters": "...", "setting": "...", "mood": "..."}, ...]`;
 
   try {
-    // Switch to Pro for better reasoning and vision analysis
-    const model = ai.getGenerativeModel({ model: "gemini-1.5-pro" });
-    const result = await model.generateContent({
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.0-flash-exp',
       contents: [{ role: 'user', parts: [...imageParts, { text: prompt }] }]
     });
     
     let jsonResult = response.text;
     
-    // Fallback: If text() is empty, try parts
     if (!jsonResult && response.candidates?.[0]?.content?.parts?.[0]?.text) {
       jsonResult = response.candidates[0].content.parts[0].text;
     }
 
-    // Advanced JSON Extraction
     const cleanJson = (text: string) => {
-      // 1. Strip markdown
       let s = text.replace(/```json/g, "").replace(/```/g, "").trim();
-      // 2. Find first [ and last ]
       const start = s.indexOf("[");
       const end = s.lastIndexOf("]");
       if (start !== -1 && end !== -1) {
@@ -208,16 +203,21 @@ Respond ONLY with a valid JSON object in this exact format:
   ]
 }`;
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-1.5-pro',
-    contents: prompt,
-    config: {
-      responseMimeType: 'application/json',
-    }
-  });
-  
-  const jsonResult = response.text || (response.candidates?.[0]?.content?.parts?.[0]?.text) || '{}';
-  return JSON.parse(jsonResult as string);
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.0-flash-exp',
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+      }
+    });
+    
+    const jsonResult = response.text || '{}';
+    return JSON.parse(jsonResult);
+  } catch (error) {
+    console.error("AutoScript Error:", error);
+    throw error;
+  }
 };
 
 export const generateScriptFromVideo = async (framesBase64: string[], style: string, sceneCount: number, language: 'en' | 'vi' | 'none' = 'en') => {
@@ -226,7 +226,7 @@ export const generateScriptFromVideo = async (framesBase64: string[], style: str
   
   const ai = new GoogleGenAI({ apiKey });
   
-  const parts = framesBase64.map(f => ({
+  const imageParts = framesBase64.map(f => ({
     inlineData: {
       mimeType: 'image/jpeg',
       data: f
@@ -254,16 +254,21 @@ Respond ONLY with a valid JSON object in this exact format:
   ]
 }`;
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-1.5-pro',
-    contents: [{ role: 'user', parts: [...parts, { text: prompt }] }],
-    config: {
-      responseMimeType: 'application/json',
-    }
-  });
-  
-  const jsonResult = response.text || (response.candidates?.[0]?.content?.parts?.[0]?.text) || '{}';
-  return JSON.parse(jsonResult as string);
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.0-flash-exp',
+      contents: [{ role: 'user', parts: [...imageParts, { text: prompt }] }],
+      config: {
+        responseMimeType: 'application/json',
+      }
+    });
+    
+    const jsonResult = response.text || '{}';
+    return JSON.parse(jsonResult);
+  } catch (error) {
+    console.error("ScriptFromVideo Error:", error);
+    throw error;
+  }
 };
 
 export const improveScenePrompt = async (currentAction: string, currentMood: string, style: string) => {
