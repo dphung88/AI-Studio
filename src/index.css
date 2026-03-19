@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Aptos", "Segoe UI", system-ui, sans-serif;
+
+  /* Overriding Tailwind's default cyan with LLC Gold/Accent (#B5945B) */
+  --color-cyan-50: #fbf9f5;
+  --color-cyan-100: #f4eee2;
+  --color-cyan-200: #e7dac2;
+  --color-cyan-300: #d6bfa0;
+  --color-cyan-400: #c6a67e;
+  --color-cyan-500: #b5945b; /* --color-accent */
+  --color-cyan-600: #a27e4e;
+  --color-cyan-700: #886542;
+  --color-cyan-800: #6f533a;
+  --color-cyan-900: #594432;
+
+  /* Overriding Tailwind's default zinc/dark colors with Main Dark (#1B1C36) */
+  --color-zinc-50: #f4f4f7;
+  --color-zinc-100: #e5e5eb;
+  --color-zinc-200: #cfcfda;
+  --color-zinc-300: #aeb0c2;
+  --color-zinc-400: #888aa3;
+  --color-zinc-500: #686984;
+  --color-zinc-600: #515269;
+  --color-zinc-700: #424356;
+  --color-zinc-800: #373847;
+  --color-zinc-900: #1B1C36; /* --color-dark (changed to match UI request) */
+  --color-zinc-950: #1B1C36; /* --color-dark */
+
+  /* Overriding default black/white for better contrast with new theme if needed */
+  --color-white: #E8E4D8; /* --color-light as off-white text/bg */
+  --color-black: #0c0d1b;
+
+  /* Custom Main Background Colors from Image */
+  --color-main-bg: #1B1C36;
+  --color-secondary-bg: #2D2E4E;
+}
+
+html {
+  font-size: 14px; /* Reduces the base rem size, making all rem-based text and spacing slightly smaller */
+}
+
+body {
+  font-family: var(--font-sans);
+}
+
+@layer utilities {
+  .hide-scrollbar {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
