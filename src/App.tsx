@@ -11,8 +11,9 @@ import { StyleRemaker } from './pages/StyleRemaker';
 import { QuickGen } from './pages/QuickGen';
 import { AutoStoryGen } from './pages/AutoStoryGen';
 import { ImageGen } from './pages/ImageGen';
+import { Gallery } from './pages/Gallery';
 import { Settings } from './pages/Settings';
-import { Film, Wand2, Zap, Video, Sparkles, Image as ImageIcon, Settings as SettingsIcon } from 'lucide-react';
+import { Film, Wand2, Zap, Video, Sparkles, Image as ImageIcon, Settings as SettingsIcon, LayoutGrid } from 'lucide-react';
 import { RemakerProvider, useRemaker } from './context/RemakerContext';
 import { AutoStoryProvider, useAutoStory } from './context/AutoStoryContext';
 import { StoryBuilderProvider, useStoryBuilder } from './context/StoryBuilderContext';
@@ -41,6 +42,7 @@ function Sidebar() {
     { path: '/auto', label: 'Idea to Video', icon: Sparkles },
     { path: '/story', label: 'Story Builder', icon: Film },
     { path: '/remaker', label: 'Style Remaker', icon: Wand2 },
+    { path: '/gallery', label: 'Gallery', icon: LayoutGrid },
     { path: '/settings', label: 'Settings', icon: SettingsIcon },
   ];
 
@@ -140,6 +142,7 @@ export default function App() {
                     <Route path="/story" element={<StoryBuilder />} />
                     <Route path="/remaker" element={<StyleRemaker />} />
                     <Route path="/quick" element={<QuickGen />} />
+                    <Route path="/gallery" element={<Gallery />} />
                     <Route path="/settings" element={<Settings />} />
                   </Routes>
                     <Toast />
