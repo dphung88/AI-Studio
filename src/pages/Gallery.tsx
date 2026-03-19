@@ -37,16 +37,27 @@ export function Gallery() {
     if (!window.confirm('Delete this item from archives?')) return;
     
     try {
-      const { error } = await supabase
+      console.log(`Requesting deletion of item ID: ${id}`);
+      const { error, count } = await supabase
         .from('studio_gallery')
-        .delete()
+        .delete({ count: 'exact' })
         .eq('id', id);
 
-      if (error) throw error;
-      setItems(items.filter(item => item.id !== id));
-    } catch (error) {
-      console.error('Error deleting item:', error);
-      alert('Failed to delete item');
+      if (error) {
+        console.error('Supabase DELETE error:', error);
+        throw error;
+      }
+      
+      console.log(`Deleted count: ${count}`);
+      if (count === 0) {
+        console.warn('Deletion successful in request but 0 rows affected. Check RLS policies.');
+        alert('Item was not deleted. This is likely a permission (RLS) issue in Supabase.');
+      } else {
+        setItems(items.filter(item => item.id !== id));
+      }
+    } catch (error: any) {
+      console.error('CRITICAL: Delete failed:', error.message || error);
+      alert(`Failed to delete item: ${error.message || 'Unknown error'}`);
     }
   };
 
