@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Image as ImageIcon, Sparkles, Download, Loader2, RefreshCw, Terminal, FolderOpen, AlertCircle, ArrowRight, Maximize2, Zap, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { generateImage } from '../services/geminiService';
 import { useSettings } from '../context/SettingsContext';
+import { useImageGen } from '../context/ImageGenContext';
 
 const ASPECT_RATIOS = ["1:1", "3:4", "4:3", "9:16", "16:9", "1:4", "1:8", "4:1", "8:1"];
 const IMAGE_SIZES = ["512px", "1K", "2K", "4K"];
@@ -13,23 +13,21 @@ const MODELS = [
 ];
 
 export function ImageGen() {
-  const { projectName, storagePath, customApiKey } = useSettings();
-  const [hasApiKey, setHasApiKey] = useState(false);
-  const [prompt, setPrompt] = useState('');
-  const [aspectRatio, setAspectRatio] = useState('1:1');
-  const [imageSize, setImageSize] = useState('1K');
-  const [model, setModel] = useState('gemini-3-pro-image-preview');
-  const [activeTab, setActiveTab] = useState<'generate' | 'logs'>('generate');
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [resultUrl, setResultUrl] = useState<string | null>(null);
-  const [showFullView, setShowFullView] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [logs, setLogs] = useState<{time: string, message: string, type: 'info' | 'success' | 'error'}[]>([]);
-  const logsContainerRef = useRef<HTMLDivElement>(null);
+  const { projectName, customApiKey } = useSettings();
+  const {
+    prompt, setPrompt,
+    aspectRatio, setAspectRatio,
+    imageSize, setImageSize,
+    model, setModel,
+    isGenerating, resultUrl,
+    error, logs,
+    handleGenerate, reset
+  } = useImageGen();
 
-  const addLog = (message: string, type: 'info' | 'success' | 'error' = 'info') => {
-    setLogs(prev => [...prev, { time: new Date().toLocaleTimeString(), message, type }]);
-  };
+  const [hasApiKey, setHasApiKey] = useState(false);
+  const [activeTab, setActiveTab] = useState<'generate' | 'logs'>('generate');
+  const [showFullView, setShowFullView] = useState(false);
+  const logsContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const checkKey = async () => {
@@ -61,29 +59,6 @@ export function ImageGen() {
     }
   };
 
-  const handleGenerate = async () => {
-    if (!prompt) return;
-    setIsGenerating(true);
-    setError(null);
-    setResultUrl(null);
-    addLog(`Starting image generation with ${model}...`, 'info');
-    addLog(`Prompt: ${prompt}`, 'info');
-    addLog(`Settings: ${aspectRatio}, ${imageSize}`, 'info');
-
-    try {
-      const url = await generateImage(prompt, aspectRatio, imageSize, model);
-      setResultUrl(url);
-      addLog('Image generated successfully!', 'success');
-    } catch (err: any) {
-      console.error(err);
-      const msg = err.message || 'Failed to generate image';
-      setError(msg);
-      addLog(`Error: ${msg}`, 'error');
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
   return (
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
@@ -107,12 +82,7 @@ export function ImageGen() {
         </div>
         <div className="pt-4">
           <button
-            onClick={() => {
-              setPrompt('');
-              setResultUrl(null);
-              setError(null);
-              setLogs([]);
-            }}
+            onClick={reset}
             className="bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white px-6 py-4 rounded-xl font-black uppercase tracking-widest flex items-center gap-3 transition-all border border-zinc-800 text-xs group"
           >
             <RefreshCw className="w-4 h-4 group-hover:rotate-180 transition-transform duration-500" /> 

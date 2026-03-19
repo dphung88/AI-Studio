@@ -18,6 +18,7 @@ import { AutoStoryProvider, useAutoStory } from './context/AutoStoryContext';
 import { StoryBuilderProvider, useStoryBuilder } from './context/StoryBuilderContext';
 import { SettingsProvider } from './context/SettingsContext';
 import { QuickGenProvider, useQuickGen } from './context/QuickGenContext';
+import { ImageGenProvider } from './context/ImageGenContext';
 
 function Sidebar() {
   const location = useLocation();
@@ -122,7 +123,8 @@ export default function App() {
           <AutoStoryProvider>
             <StoryBuilderProvider>
               <QuickGenProvider>
-                <BrowserRouter>
+                <ImageGenProvider>
+                  <BrowserRouter>
                 <div className="flex h-screen bg-main-bg text-white font-sans overflow-hidden">
                 <Sidebar />
                 <main className="flex-1 overflow-y-auto relative bg-main-bg">
@@ -138,6 +140,7 @@ export default function App() {
                   </main>
                 </div>
               </BrowserRouter>
+                </ImageGenProvider>
               </QuickGenProvider>
             </StoryBuilderProvider>
           </AutoStoryProvider>
