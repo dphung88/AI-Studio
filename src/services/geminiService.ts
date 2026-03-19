@@ -129,59 +129,54 @@ export const analyzeVideoScenes = async (framesBase64: string[], targetSceneCoun
   
   const ai = new GoogleGenAI({ apiKey });
   
-  const parts = framesBase64.map(f => ({
+  const imageParts = framesBase64.map(f => ({
     inlineData: {
       mimeType: 'image/jpeg',
       data: f
     }
   }));
   
-  const prompt = `Analyze these sequential frames from a video. Break the video down into exactly ${targetSceneCount} distinct scenes based on the flow of the video.
-For each scene, provide:
-1. Action taking place
-2. Characters present
-3. Setting/Environment
-4. Mood/Atmosphere
+  const prompt = `Analyze these sequential frames from a video. Break the video down into exactly ${targetSceneCount} distinct scenes.
+For each scene, describe:
+- action: exactly what is happening
+- characters: who is on screen
+- setting: the environment
+- mood: the visual tone
 
-Return the result as a JSON array of exactly ${targetSceneCount} objects with keys: "sceneNumber", "action", "characters", "setting", "mood".
-Respond with valid JSON only. Do not include markdown formatting or extra text.`;
+Return ONLY a JSON array of ${targetSceneCount} objects. 
+Format: [{"sceneNumber": 1, "action": "...", "characters": "...", "setting": "...", "mood": "..."}, ...]`;
 
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-1.5-flash',
-      contents: [{ role: 'user', parts: [...parts, { text: prompt }] }],
-      config: {
-        responseMimeType: 'application/json',
-      }
+    // Switch to Pro for better reasoning and vision analysis
+    const model = ai.getGenerativeModel({ model: "gemini-1.5-pro" });
+    const result = await model.generateContent({
+      contents: [{ role: 'user', parts: [...imageParts, { text: prompt }] }]
     });
     
-    let jsonResult = response.text || (response.candidates?.[0]?.content?.parts?.[0]?.text) || '[]';
+    let jsonResult = response.text;
     
-    console.log("Raw Gemini Response:", jsonResult);
-
-    // Clean JSON if it's wrapped in markdown backticks
-    if (jsonResult.includes('```json')) {
-      jsonResult = jsonResult.split('```json')[1].split('```')[0].trim();
-    } else if (jsonResult.includes('```')) {
-      const split = jsonResult.split('```');
-      jsonResult = split[1] || split[0];
-      jsonResult = jsonResult.split('```')[0].trim();
+    // Fallback: If text() is empty, try parts
+    if (!jsonResult && response.candidates?.[0]?.content?.parts?.[0]?.text) {
+      jsonResult = response.candidates[0].content.parts[0].text;
     }
 
-    // Secondary cleanup: remove any leading/trailing text outside brackets
-    const startBracket = jsonResult.indexOf('[');
-    const endBracket = jsonResult.lastIndexOf(']');
-    if (startBracket !== -1 && endBracket !== -1 && endBracket > startBracket) {
-      jsonResult = jsonResult.substring(startBracket, endBracket + 1);
-    }
+    // Advanced JSON Extraction
+    const cleanJson = (text: string) => {
+      // 1. Strip markdown
+      let s = text.replace(/```json/g, "").replace(/```/g, "").trim();
+      // 2. Find first [ and last ]
+      const start = s.indexOf("[");
+      const end = s.lastIndexOf("]");
+      if (start !== -1 && end !== -1) {
+        return s.substring(start, end + 1);
+      }
+      return s;
+    };
 
-    const parsed = JSON.parse(jsonResult);
-    if (!Array.isArray(parsed)) {
-      throw new Error("Gemini did not return a JSON array");
-    }
-    return parsed;
+    const parsed = JSON.parse(cleanJson(jsonResult));
+    return Array.isArray(parsed) ? parsed : [parsed];
   } catch (error: any) {
-    console.error("Video Analysis Detailed Error:", error);
+    console.error("Gemini Video Analysis Error:", error);
     throw error;
   }
 };
