@@ -142,26 +142,48 @@ For each scene, provide:
 3. Setting/Environment
 4. Mood/Atmosphere
 
-Return the result as a JSON array of exactly ${targetSceneCount} objects with keys: "sceneNumber", "action", "characters", "setting", "mood".`;
+Return the result as a JSON array of exactly ${targetSceneCount} objects with keys: "sceneNumber", "action", "characters", "setting", "mood".
+Respond with valid JSON only. Do not include markdown formatting or extra text.`;
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-1.5-flash',
-    contents: [{ role: 'user', parts: [...parts, { text: prompt }] }],
-    config: {
-      responseMimeType: 'application/json',
+  try {
+    const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const result = await model.generateContent({
+      contents: [{ role: 'user', parts: [...parts, { text: prompt }] }],
+      generationConfig: {
+        responseMimeType: 'application/json',
+      }
+    });
+    
+    const response = await result.response;
+    let jsonResult = response.text();
+    
+    console.log("Raw Gemini Response:", jsonResult);
+
+    // Clean JSON if it's wrapped in markdown backticks
+    if (jsonResult.includes('```json')) {
+      jsonResult = jsonResult.split('```json')[1].split('```')[0].trim();
+    } else if (jsonResult.includes('```')) {
+      const split = jsonResult.split('```');
+      jsonResult = split[1] || split[0];
+      jsonResult = jsonResult.split('```')[0].trim();
     }
-  });
-  
-  let jsonResult = response.text || (response.candidates?.[0]?.content?.parts?.[0]?.text) || '[]';
-  
-  // Clean JSON if it's wrapped in markdown backticks
-  if (jsonResult.includes('```json')) {
-    jsonResult = jsonResult.split('```json')[1].split('```')[0].trim();
-  } else if (jsonResult.includes('```')) {
-    jsonResult = jsonResult.split('```')[1].split('```')[0].trim();
-  }
 
-  return JSON.parse(jsonResult as string);
+    // Secondary cleanup: remove any leading/trailing text outside brackets
+    const startBracket = jsonResult.indexOf('[');
+    const endBracket = jsonResult.lastIndexOf(']');
+    if (startBracket !== -1 && endBracket !== -1 && endBracket > startBracket) {
+      jsonResult = jsonResult.substring(startBracket, endBracket + 1);
+    }
+
+    const parsed = JSON.parse(jsonResult);
+    if (!Array.isArray(parsed)) {
+      throw new Error("Gemini did not return a JSON array");
+    }
+    return parsed;
+  } catch (error: any) {
+    console.error("Video Analysis Detailed Error:", error);
+    throw error;
+  }
 };
 
 export const generateAutoScript = async (idea: string, style: string, sceneCount: number, language: 'en' | 'vi' | 'none' = 'en') => {
