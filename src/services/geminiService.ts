@@ -152,7 +152,15 @@ Return the result as a JSON array of exactly ${targetSceneCount} objects with ke
     }
   });
   
-  const jsonResult = response.text || (response.candidates?.[0]?.content?.parts?.[0]?.text) || '[]';
+  let jsonResult = response.text || (response.candidates?.[0]?.content?.parts?.[0]?.text) || '[]';
+  
+  // Clean JSON if it's wrapped in markdown backticks
+  if (jsonResult.includes('```json')) {
+    jsonResult = jsonResult.split('```json')[1].split('```')[0].trim();
+  } else if (jsonResult.includes('```')) {
+    jsonResult = jsonResult.split('```')[1].split('```')[0].trim();
+  }
+
   return JSON.parse(jsonResult as string);
 };
 
