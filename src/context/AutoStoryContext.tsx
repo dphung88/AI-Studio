@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import { generateAutoScript, generateScriptFromVideo, extractFrames, generateSpeech } from '../services/geminiService';
 import { generateVideo, pollVideoOperation } from '../services/veoService';
 import { concatVideos } from '../services/videoAssemblyService';
+import { saveToStudioGallery } from '../services/supabase';
 import { AspectRatio } from '../types';
 import { useSettings } from './SettingsContext';
 
@@ -262,6 +263,14 @@ export const AutoStoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         try {
           const url = await generateSceneWithRetry(scene.prompt, aspectRatio, veoModel);
           if (myGenerationId !== currentGenerationId) break;
+
+          // Auto-save each scene video
+          saveToStudioGallery({
+            type: 'video',
+            url,
+            prompt: scene.prompt,
+            settings: { source: 'auto-story-scene', index: sceneIndexToProcess, model: veoModel }
+          });
           
           setState(prev => {
             const newScenes = [...prev.scenesState];
@@ -484,6 +493,14 @@ export const AutoStoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         updateState({ assemblyProgress: Math.round(progress * 100) });
       });
       updateState({ finalVideo: finalUrl, isAssembling: false, assemblyProgress: 100 });
+
+      // Auto-save final assembled master video
+      saveToStudioGallery({
+        type: 'video',
+        url: finalUrl,
+        prompt: `Auto Story master for idea: ${state.idea}`,
+        settings: { source: 'auto-story-master', style: state.style, sceneCount: state.sceneCount }
+      });
     } catch (error: any) {
       console.error('Failed to assemble video:', error);
       updateState({ isAssembling: false, assemblyError: error.message || 'Unknown error during assembly' });

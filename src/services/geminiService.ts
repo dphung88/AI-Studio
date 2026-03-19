@@ -1,5 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
 import { getApiKey } from './apiConfig';
+import { saveToStudioGallery } from './supabase';
 
 function createWavFile(base64Data: string): string {
   try {
@@ -327,7 +328,17 @@ export const generateImage = async (prompt: string, aspectRatio: string = "1:1",
   for (const part of parts) {
     if (part.inlineData) {
       const base64EncodeString = part.inlineData.data;
-      return `data:image/png;base64,${base64EncodeString}`;
+      const url = `data:image/png;base64,${base64EncodeString}`;
+      
+      // Centralized auto-save for Direct Image Gen service
+      saveToStudioGallery({
+        type: 'image',
+        url,
+        prompt,
+        settings: { model: modelName, size: imageSize, aspectRatio }
+      });
+
+      return url;
     }
   }
   throw new Error('No image data in response');

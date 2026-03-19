@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { generateVideo, pollVideoOperation } from '../services/veoService';
 import { concatVideos } from '../services/videoAssemblyService';
 import { improveScenePrompt } from '../services/geminiService';
+import { saveToStudioGallery } from '../services/supabase';
 import { useSettings } from './SettingsContext';
 
 import { AspectRatio } from '../types';
@@ -278,6 +279,14 @@ export const RemakerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         try {
           const url = await generateSceneWithRetry(sceneIndexToProcess, prompt, aspectRatio, veoModel);
           if (myGenerationId !== currentGenerationId || !activeTasks.has(taskKey)) return; 
+
+          // Auto-save each scene video to Supabase
+          saveToStudioGallery({
+            type: 'video',
+            url,
+            prompt,
+            settings: { source: 'remaker-scene', index: sceneIndexToProcess, model: veoModel }
+          });
           
           let isAllDone = false;
           setState(prev => {
@@ -467,6 +476,14 @@ export const RemakerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         updateState({ assemblyProgress: Math.round(progress * 100) });
       });
       updateState({ finalVideo: finalUrl, isAssembling: false, assemblyProgress: 100 });
+
+      // Auto-save final assembled master video
+      saveToStudioGallery({
+        type: 'video',
+        url: finalUrl,
+        prompt: `Remake master for style ${state.selectedStyle}`,
+        settings: { source: 'remaker-master', style: state.selectedStyle, sceneCount: state.scenes.length }
+      });
     } catch (error: any) {
       console.error('Concat failed', error);
       updateState({ isAssembling: false, assemblyError: error.message || 'Unknown error during assembly' });
