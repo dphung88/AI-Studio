@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../services/supabase';
 import { motion } from 'motion/react';
-import { Image as ImageIcon, Video, Download, Trash2, ExternalLink, RefreshCw } from 'lucide-react';
+import { Image as ImageIcon, Video, Download, Trash2, RefreshCw, Loader2 } from 'lucide-react';
 
 interface GalleryItem {
   id: string;
@@ -15,6 +15,33 @@ interface GalleryItem {
 export function Gallery() {
   const [items, setItems] = useState<GalleryItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+  const downloadFile = async (item: GalleryItem) => {
+    setDownloadingId(item.id);
+    try {
+      const response = await fetch(item.url);
+      if (!response.ok) throw new Error('Fetch failed');
+      const blob = await response.blob();
+      const ext = item.type === 'video'
+        ? (blob.type.includes('mp4') ? 'mp4' : 'webm')
+        : (blob.type.includes('png') ? 'png' : 'jpg');
+      const filename = `studio-${item.type}-${Date.now()}.${ext}`;
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+    } catch {
+      // CORS fallback: open in new tab so user can save manually
+      window.open(item.url, '_blank');
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   const fetchGallery = async () => {
     setLoading(true);
@@ -132,12 +159,20 @@ export function Gallery() {
 
                 {/* Hover Overlay */}
                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4">
-                  <a href={item.url} download target="_blank" rel="noreferrer" className="p-3 bg-cyan-500 text-black rounded-full hover:bg-cyan-400 transition-all">
-                    <Download className="w-5 h-5" />
-                  </a>
-                  <button 
+                  <button
+                    onClick={() => downloadFile(item)}
+                    disabled={downloadingId === item.id}
+                    className="p-3 bg-cyan-500 text-black rounded-full hover:bg-cyan-400 transition-all disabled:opacity-60"
+                    title="Download"
+                  >
+                    {downloadingId === item.id
+                      ? <Loader2 className="w-5 h-5 animate-spin" />
+                      : <Download className="w-5 h-5" />
+                    }
+                  </button>
+                  <button
                     onClick={() => handleDelete(item.id)}
-                    className="p-3 bg-zinc-800 text-white rounded-full hover:bg-red-500 transition-all" 
+                    className="p-3 bg-zinc-800 text-white rounded-full hover:bg-red-500 transition-all"
                     title="Delete from archives"
                   >
                     <Trash2 className="w-5 h-5" />
