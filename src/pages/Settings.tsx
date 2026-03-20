@@ -211,9 +211,9 @@ export function Settings() {
                 <label className="block text-sm font-bold text-zinc-500 uppercase tracking-wider mb-3">AI Intelligence Model (LLM)</label>
                 <div className="flex flex-wrap gap-3">
                   {[
-                    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', desc: 'Newest & Fastest' },
-                    { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', desc: 'Legacy Fast' },
-                    { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', desc: 'Higher Intelligence' }
+                    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', desc: 'Fast & Stable' },
+                    { id: 'gemini-2.5-flash-preview-05-20', name: 'Gemini 2.5 Flash', desc: 'Latest & Smartest' },
+                    { id: 'gemini-2.5-pro-preview-06-05', name: 'Gemini 2.5 Pro', desc: 'Highest Intelligence' }
                   ].map(model => (
                     <button
                       key={model.id}
@@ -231,7 +231,7 @@ export function Settings() {
                 </div>
                 <p className="mt-3 text-[10px] text-zinc-500 italic flex items-center gap-2">
                   <AlertCircle className="w-3 h-3" />
-                  If you see 403 Forbidden errors, please switch to Flash model.
+                  Gemini 1.5 models are deprecated. Use 2.0+ for compatibility.
                 </p>
               </div>
 

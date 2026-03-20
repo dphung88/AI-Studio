@@ -38,8 +38,8 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const saved = localStorage.getItem('studioSettings');
     if (saved) {
       const parsed = JSON.parse(saved);
-      // Auto-migrate from old broken model to new one
-      if (parsed.llmModel === 'gemini-1.5-flash') {
+      // Auto-migrate deprecated 1.5 models to 2.0
+      if (parsed.llmModel?.startsWith('gemini-1.5')) {
         parsed.llmModel = 'gemini-2.0-flash';
       }
       return parsed;

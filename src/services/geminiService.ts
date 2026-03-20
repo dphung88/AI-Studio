@@ -54,15 +54,17 @@ function createWavFile(base64Data: string): string {
 
 export const generateSpeech = async (text: string, language: 'en' | 'vi') => {
   const apiKey = getApiKey();
-  const model = getLlmModel();
   if (!apiKey) throw new Error('API Key is missing. Please select or enter an API key in Settings.');
-  
+
+  // TTS requires a model with AUDIO output support — hardcode to avoid user picking incompatible model
+  const ttsModel = 'gemini-2.0-flash-exp';
+
   try {
     const ai = new GoogleGenAI({ apiKey });
     const voiceName = language === 'vi' ? 'Puck' : 'Kore';
-    
+
     const response = await ai.models.generateContent({
-      model: model,
+      model: ttsModel,
       contents: [{ parts: [{ text }] }],
       config: {
         responseModalities: ["AUDIO"],
