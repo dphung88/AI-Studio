@@ -505,31 +505,88 @@ export function StyleRemaker() {
 
                   {/* Scene Status */}
                   <div className="bg-black/20 p-8 rounded-[2rem] border border-zinc-800/50">
-                    <h3 className="text-xl font-black text-white uppercase tracking-tight mb-6">System Status</h3>
-                    <div className="space-y-3 overflow-y-auto max-h-[320px] hide-scrollbar pr-1">
-                      {remadeScenes.map((s, i) => (
-                        <div key={i} className="flex items-center justify-between p-3 bg-zinc-900/50 rounded-xl border border-zinc-800">
-                          <span className="text-[10px] font-black text-zinc-500 uppercase">Scene {i + 1}</span>
-                          <div className="flex items-center gap-2">
-                            {s.loading && s.startTime && <ElapsedTime startTime={s.startTime} />}
-                            {s.status === 'done' ? (
-                              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                            ) : s.status === 'error' ? (
-                              <div className="flex items-center gap-2">
-                                <AlertCircle className="w-4 h-4 text-red-500" />
-                                <button
-                                  onClick={() => retryVariant(i)}
-                                  className="text-[9px] font-black text-red-400 hover:text-red-300 uppercase tracking-widest border border-red-500/30 px-2 py-0.5 rounded-md transition-colors"
-                                >
-                                  Retry
-                                </button>
-                              </div>
-                            ) : (
-                              <Loader2 className="w-4 h-4 text-cyan-500 animate-spin" />
-                            )}
-                          </div>
+                    <div className="flex items-center justify-between mb-6">
+                      <h3 className="text-xl font-black text-white uppercase tracking-tight">System Status</h3>
+                      {remadeScenes.length > 0 && (
+                        <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">
+                          {remadeScenes.filter(s => s.status === 'done').length}
+                          <span className="text-zinc-600"> / {remadeScenes.length}</span>
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Progress bar */}
+                    {remadeScenes.length > 0 && (
+                      <div className="mb-5">
+                        <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-cyan-600 to-cyan-400 rounded-full transition-all duration-700"
+                            style={{ width: `${(remadeScenes.filter(s => s.status === 'done').length / remadeScenes.length) * 100}%` }}
+                          />
                         </div>
-                      ))}
+                      </div>
+                    )}
+
+                    <div className="space-y-3 overflow-y-auto max-h-[260px] hide-scrollbar pr-1">
+                      {remadeScenes.map((s, i) => {
+                        const isProcessing = s.status === 'processing';
+                        const isQueued    = s.status === 'queued';
+                        return (
+                          <div
+                            key={i}
+                            className={`flex items-center justify-between p-3 rounded-xl border transition-all ${
+                              isProcessing
+                                ? 'bg-cyan-950/30 border-cyan-500/40'
+                                : s.status === 'done'
+                                  ? 'bg-emerald-950/20 border-emerald-500/20'
+                                  : s.status === 'error'
+                                    ? 'bg-red-950/20 border-red-500/20'
+                                    : 'bg-zinc-900/50 border-zinc-800'
+                            }`}
+                          >
+                            {/* Left: scene label + status badge */}
+                            <div className="flex items-center gap-3">
+                              <span className={`text-[10px] font-black uppercase ${isProcessing ? 'text-cyan-400' : 'text-zinc-500'}`}>
+                                Scene {i + 1}
+                              </span>
+                              {isProcessing && (
+                                <span className="text-[8px] font-black text-cyan-500 uppercase tracking-widest bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/20 animate-pulse">
+                                  Generating
+                                </span>
+                              )}
+                              {isQueued && (
+                                <span className="text-[8px] font-black text-zinc-600 uppercase tracking-widest bg-zinc-800/50 px-2 py-0.5 rounded-full">
+                                  Queued
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Right: timer / icon */}
+                            <div className="flex items-center gap-2">
+                              {isProcessing && s.startTime && <ElapsedTime startTime={s.startTime} />}
+                              {s.status === 'done' ? (
+                                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                              ) : s.status === 'error' ? (
+                                <div className="flex items-center gap-2">
+                                  <AlertCircle className="w-4 h-4 text-red-500" />
+                                  <button
+                                    onClick={() => retryVariant(i)}
+                                    className="text-[9px] font-black text-red-400 hover:text-red-300 uppercase tracking-widest border border-red-500/30 px-2 py-0.5 rounded-md transition-colors"
+                                  >
+                                    Retry
+                                  </button>
+                                </div>
+                              ) : isProcessing ? (
+                                <Loader2 className="w-4 h-4 text-cyan-500 animate-spin" />
+                              ) : (
+                                <div className="w-4 h-4 rounded-full border border-zinc-700 flex items-center justify-center">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-zinc-700" />
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
 
                     {/* Action buttons */}

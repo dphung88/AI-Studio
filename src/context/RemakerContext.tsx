@@ -421,8 +421,8 @@ export const RemakerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
         
         if (myGenerationId !== currentGenerationId) break;
-        // Increased base delay to 25s for better stability on free tier
-        await new Promise(resolve => setTimeout(resolve, 25000));
+        // Short cooldown between scenes to avoid immediate quota hit
+        await new Promise(resolve => setTimeout(resolve, 3000));
       }
     } finally {
       if (myGenerationId === currentGenerationId) {
