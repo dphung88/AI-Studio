@@ -388,7 +388,7 @@ export function StyleRemaker() {
                     <div key={i} className="bg-zinc-950/50 p-6 rounded-3xl border border-zinc-800/50">
                       <div className="text-[10px] font-black text-cyan-500 uppercase tracking-[0.2em] mb-4">Scene {i + 1}</div>
                       <div className="space-y-4">
-                        <textarea 
+                        <textarea
                           value={scene.action || ''}
                           onChange={(e) => {
                             const newScenes = [...scenes];
@@ -398,7 +398,7 @@ export function StyleRemaker() {
                           className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-200 focus:outline-none focus:border-cyan-500/50 resize-none h-20"
                           placeholder="Action..."
                         />
-                        <input 
+                        <input
                           type="text" value={scene.characters || ''}
                           onChange={(e) => {
                             const newScenes = [...scenes];
@@ -408,7 +408,7 @@ export function StyleRemaker() {
                           className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-300"
                           placeholder="Characters..."
                         />
-                        <input 
+                        <input
                           type="text" value={scene.mood || ''}
                           onChange={(e) => {
                             const newScenes = [...scenes];
@@ -423,38 +423,72 @@ export function StyleRemaker() {
                   ))}
                 </div>
 
-                <div className="p-8 bg-zinc-950/50 rounded-[2rem] border border-zinc-800/50">
-                  <h3 className="text-xl font-black text-white uppercase tracking-tight mb-8">Visual Style & Generation</h3>
-                  <div className="flex flex-wrap gap-3 mb-10">
-                    {STYLES.map(style => (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                  {/* Style & Generation Config */}
+                  <div className="lg:col-span-2 p-8 bg-zinc-950/50 rounded-[2rem] border border-zinc-800/50">
+                    <h3 className="text-xl font-black text-white uppercase tracking-tight mb-8">Visual Style & Generation</h3>
+                    <div className="flex flex-wrap gap-3 mb-10">
+                      {STYLES.map(style => (
+                        <button
+                          key={style}
+                          onClick={() => setSelectedStyle(style)}
+                          className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all ${
+                            selectedStyle === style ? 'bg-cyan-500 text-black border-cyan-400' : 'bg-zinc-900 text-zinc-500 border-zinc-800 hover:border-zinc-700'
+                          }`}
+                        >
+                          {style}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex justify-end">
                       <button
-                        key={style}
-                        onClick={() => setSelectedStyle(style)}
-                        className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all ${
-                          selectedStyle === style ? 'bg-cyan-500 text-black border-cyan-400' : 'bg-zinc-900 text-zinc-500 border-zinc-800 hover:border-zinc-700'
-                        }`}
+                        onClick={startGeneration}
+                        disabled={isGenerating}
+                        className="bg-cyan-500 hover:bg-cyan-400 text-black font-black uppercase tracking-[0.2em] py-5 px-10 rounded-2xl flex items-center gap-4 transition-all shadow-2xl"
                       >
-                        {style}
+                        {isGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
+                        {isGenerating ? 'GENERATING...' : 'START GENERATION'}
                       </button>
-                    ))}
+                    </div>
                   </div>
-                  <div className="flex justify-end">
-                    <button
-                      onClick={startGeneration}
-                      disabled={isGenerating}
-                      className="bg-cyan-500 hover:bg-cyan-400 text-black font-black uppercase tracking-[0.2em] py-5 px-10 rounded-2xl flex items-center gap-4 transition-all shadow-2xl"
-                    >
-                      {isGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
-                      {isGenerating ? 'GENERATING...' : 'START GENERATION'}
-                    </button>
+
+                  {/* System Logs */}
+                  <div className="lg:col-span-1 flex flex-col bg-black/40 border border-zinc-800/50 rounded-[2rem] overflow-hidden">
+                    <div className="flex items-center gap-3 px-6 py-4 border-b border-zinc-800/50 bg-zinc-900/40">
+                      <Terminal className="w-4 h-4 text-cyan-500" />
+                      <span className="text-[10px] font-black text-white/50 uppercase tracking-[0.3em]">System Logs</span>
+                      <div className="ml-auto flex gap-1">
+                        <div className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse" />
+                        <div className="w-1.5 h-1.5 rounded-full bg-cyan-500/30" />
+                      </div>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-5 font-mono text-[10px] space-y-2 hide-scrollbar min-h-[200px]">
+                      {logs.length === 0 ? (
+                        <div className="text-zinc-700 italic">Awaiting operations...</div>
+                      ) : (
+                        logs.map((log, i) => (
+                          <div key={i} className={`flex gap-3 leading-relaxed border-l-2 pl-3 ${
+                            log.type === 'error' ? 'text-red-400 border-red-500/50' :
+                            log.type === 'success' ? 'text-cyan-400 border-cyan-500/50' :
+                            'text-zinc-500 border-zinc-800'
+                          }`}>
+                            <span className="opacity-30 shrink-0 font-bold">[{log.time}]</span>
+                            <span className="break-words">{log.message}</span>
+                          </div>
+                        ))
+                      )}
+                      <div ref={logsEndRef} />
+                    </div>
                   </div>
                 </div>
               </div>
             )}
 
             {step === 4 && (
-              <div className="space-y-12">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+              <div className="space-y-8">
+                {/* Top row: Preview + Scene Status */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  {/* Preview */}
                   <div className="space-y-4">
                     <h3 className="text-xl font-black text-white uppercase tracking-tight">Preview Results</h3>
                     <div className="aspect-video bg-black rounded-[2rem] overflow-hidden border border-zinc-800">
@@ -468,22 +502,91 @@ export function StyleRemaker() {
                       )}
                     </div>
                   </div>
+
+                  {/* Scene Status */}
                   <div className="bg-black/20 p-8 rounded-[2rem] border border-zinc-800/50">
                     <h3 className="text-xl font-black text-white uppercase tracking-tight mb-6">System Status</h3>
-                    <div className="space-y-4">
+                    <div className="space-y-3 overflow-y-auto max-h-[320px] hide-scrollbar pr-1">
                       {remadeScenes.map((s, i) => (
                         <div key={i} className="flex items-center justify-between p-3 bg-zinc-900/50 rounded-xl border border-zinc-800">
                           <span className="text-[10px] font-black text-zinc-500 uppercase">Scene {i + 1}</span>
-                          {s.status === 'done' ? (
-                            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                          ) : s.status === 'error' ? (
-                            <AlertCircle className="w-4 h-4 text-red-500" />
-                          ) : (
-                            <Loader2 className="w-4 h-4 text-cyan-500 animate-spin" />
-                          )}
+                          <div className="flex items-center gap-2">
+                            {s.loading && s.startTime && <ElapsedTime startTime={s.startTime} />}
+                            {s.status === 'done' ? (
+                              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                            ) : s.status === 'error' ? (
+                              <div className="flex items-center gap-2">
+                                <AlertCircle className="w-4 h-4 text-red-500" />
+                                <button
+                                  onClick={() => retryVariant(i)}
+                                  className="text-[9px] font-black text-red-400 hover:text-red-300 uppercase tracking-widest border border-red-500/30 px-2 py-0.5 rounded-md transition-colors"
+                                >
+                                  Retry
+                                </button>
+                              </div>
+                            ) : (
+                              <Loader2 className="w-4 h-4 text-cyan-500 animate-spin" />
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>
+
+                    {/* Action buttons */}
+                    {allScenesGenerated && (
+                      <div className="mt-6 flex flex-wrap gap-3">
+                        <button
+                          onClick={assembleFinalVideo}
+                          className="flex-1 bg-cyan-500 hover:bg-cyan-400 text-black font-black uppercase tracking-[0.15em] py-3 rounded-xl flex items-center justify-center gap-2 text-[10px] transition-all"
+                        >
+                          <Film className="w-4 h-4" />
+                          Assemble Master
+                        </button>
+                        <button
+                          onClick={downloadAllClips}
+                          className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-black uppercase tracking-[0.15em] py-3 rounded-xl flex items-center justify-center gap-2 text-[10px] transition-all border border-zinc-700"
+                        >
+                          <Download className="w-4 h-4" />
+                          Download Clips
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Bottom: System Logs (full width) */}
+                <div className="bg-black/40 border border-zinc-800/50 rounded-[2rem] overflow-hidden">
+                  <div className="flex items-center gap-3 px-6 py-4 border-b border-zinc-800/50 bg-zinc-900/40">
+                    <Terminal className="w-4 h-4 text-cyan-500" />
+                    <span className="text-[10px] font-black text-white/50 uppercase tracking-[0.3em]">Neural Process Output</span>
+                    <div className="ml-auto flex items-center gap-3">
+                      {isGenerating && (
+                        <span className="text-[9px] font-black text-cyan-500 uppercase tracking-widest animate-pulse">
+                          ● Live
+                        </span>
+                      )}
+                      <div className="flex gap-1">
+                        <div className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse" />
+                        <div className="w-1.5 h-1.5 rounded-full bg-cyan-500/30" />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="p-6 font-mono text-[10px] space-y-2 overflow-y-auto h-[220px] hide-scrollbar">
+                    {logs.length === 0 ? (
+                      <div className="text-zinc-700 italic">Awaiting neural initialization...</div>
+                    ) : (
+                      logs.map((log, i) => (
+                        <div key={i} className={`flex gap-3 leading-relaxed border-l-2 pl-3 ${
+                          log.type === 'error' ? 'text-red-400 border-red-500/50' :
+                          log.type === 'success' ? 'text-cyan-400 border-cyan-500/50' :
+                          'text-zinc-500 border-zinc-800'
+                        }`}>
+                          <span className="opacity-30 shrink-0 font-bold">[{log.time}]</span>
+                          <span className="break-words">{log.message}</span>
+                        </div>
+                      ))
+                    )}
+                    <div ref={logsEndRef} />
                   </div>
                 </div>
               </div>
