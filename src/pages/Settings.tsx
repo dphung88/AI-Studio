@@ -209,15 +209,29 @@ export function Settings() {
 
               <div>
                 <label className="block text-sm font-bold text-zinc-500 uppercase tracking-wider mb-3">AI Intelligence Model (LLM)</label>
-                <select 
-                  value={llmModel || 'gemini-1.5-flash'}
-                  onChange={(e) => setLlmModel(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-cyan-500 font-sans focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none appearance-none transition-all"
-                >
-                  <option value="gemini-1.5-flash">Gemini 1.5 Flash (Fast & Recommended for Free tier)</option>
-                  <option value="gemini-1.5-pro">Gemini 1.5 Pro (Powerful but strict quota/403 risks)</option>
-                </select>
-                <p className="mt-2 text-[10px] text-zinc-500 italic">If you see 403 Permission Denied errors, please switch to Flash model.</p>
+                <div className="flex flex-wrap gap-3">
+                  {[
+                    { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', desc: 'Fast & Recommended' },
+                    { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', desc: 'Higher Intelligence' }
+                  ].map(model => (
+                    <button
+                      key={model.id}
+                      onClick={() => setLlmModel(model.id)}
+                      className={`flex-1 min-w-[140px] p-4 rounded-xl border text-left transition-all ${
+                        (llmModel || 'gemini-1.5-flash') === model.id 
+                          ? 'bg-cyan-500/10 border-cyan-500 text-cyan-400 shadow-[0_0_20px_rgba(6,182,212,0.1)]' 
+                          : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:border-zinc-700'
+                      }`}
+                    >
+                      <div className="font-bold text-xs uppercase tracking-widest mb-1">{model.name}</div>
+                      <div className="text-[10px] opacity-60 italic">{model.desc}</div>
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-3 text-[10px] text-zinc-500 italic flex items-center gap-2">
+                  <AlertCircle className="w-3 h-3" />
+                  If you see 403 Forbidden errors, please switch to Flash model.
+                </p>
               </div>
 
               <div>
