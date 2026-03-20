@@ -499,7 +499,7 @@ export const RemakerProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const assembleFinalVideo = async () => {
-    const { remadeScenes } = state;
+    const { remadeScenes } = stateRef.current;
     const scenesToMerge = remadeScenes
       .filter(s => s.url)
       .map(s => ({ videoUrl: s.url }));
@@ -523,11 +523,12 @@ export const RemakerProvider: React.FC<{ children: React.ReactNode }> = ({ child
       updateState({ finalVideo: finalUrl, isAssembling: false, assemblyProgress: 100 });
 
       // Auto-save final assembled master video
+      const currentStateSnap = stateRef.current;
       saveToStudioGallery({
         type: 'video',
         url: finalUrl,
-        prompt: `Remake master for style ${state.selectedStyle}`,
-        settings: { source: 'remaker-master', style: state.selectedStyle, sceneCount: state.scenes.length }
+        prompt: `Remake master for style ${currentStateSnap.selectedStyle}`,
+        settings: { source: 'remaker-master', style: currentStateSnap.selectedStyle, sceneCount: currentStateSnap.scenes.length }
       });
     } catch (error: any) {
       const errorMsg = error.message || 'Unknown error during assembly';
