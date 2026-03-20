@@ -5,6 +5,69 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || process.env.VI
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+const STORAGE_BUCKET = 'studio-media';
+
+// Convert base64 data: URL to Blob
+const dataUrlToBlob = (dataUrl: string): Blob => {
+  const [header, base64] = dataUrl.split(',');
+  const mimeType = header.match(/:(.*?);/)?.[1] || 'image/jpeg';
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], { type: mimeType });
+};
+
+// Upload a Blob to Supabase Storage, return permanent public URL
+export const uploadToStorage = async (blob: Blob, type: 'image' | 'video'): Promise<string> => {
+  const ext = type === 'video'
+    ? (blob.type.includes('mp4') ? 'mp4' : 'webm')
+    : (blob.type.includes('png') ? 'png' : 'jpg');
+  const filename = `${type}s/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+  const { error } = await supabase.storage
+    .from(STORAGE_BUCKET)
+    .upload(filename, blob, {
+      contentType: blob.type || (type === 'video' ? 'video/mp4' : 'image/jpeg'),
+      upsert: false,
+    });
+
+  if (error) throw error;
+
+  const { data: { publicUrl } } = supabase.storage
+    .from(STORAGE_BUCKET)
+    .getPublicUrl(filename);
+
+  return publicUrl;
+};
+
+// Resolve URL to permanent Supabase Storage URL:
+// - blob: URLs  → fetch blob → upload → return permanent URL
+// - data: URLs  → convert to blob → upload → return permanent URL
+// - https: URLs → upload from fetch → return permanent URL
+// - already Supabase storage URLs → return as-is
+const resolveToStorageUrl = async (url: string, type: 'image' | 'video'): Promise<string> => {
+  // Already a permanent Supabase storage URL — no need to re-upload
+  if (url.includes(supabaseUrl) && url.includes('/storage/')) return url;
+
+  try {
+    let blob: Blob;
+
+    if (url.startsWith('data:')) {
+      blob = dataUrlToBlob(url);
+    } else {
+      // blob: or https: — fetch and get blob
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`Fetch failed: ${res.statusText}`);
+      blob = await res.blob();
+    }
+
+    return await uploadToStorage(blob, type);
+  } catch (err) {
+    console.warn('[supabase] Could not upload to storage, using original URL:', err);
+    return url; // graceful fallback
+  }
+};
+
 export const saveToStudioGallery = async (data: {
   type: 'image' | 'video';
   url: string;
@@ -17,24 +80,28 @@ export const saveToStudioGallery = async (data: {
   }
 
   try {
-    console.log(`Attempting to save ${data.type} to Supabase...`, { url: data.url });
+    console.log(`[Gallery] Uploading ${data.type} to Supabase Storage...`);
+    const permanentUrl = await resolveToStorageUrl(data.url, data.type);
+    console.log(`[Gallery] Storage upload done. Saving metadata...`);
+
     const { error } = await supabase
       .from('studio_gallery')
       .insert([
         {
           type: data.type,
-          url: data.url,
+          url: permanentUrl,
           prompt: data.prompt,
           settings: data.settings,
           created_at: new Date().toISOString(),
         },
       ]);
+
     if (error) {
-      console.error('Supabase error detail:', error);
+      console.error('Supabase DB error:', error);
       throw error;
     }
-    console.log(`Successfully saved ${data.type} to Supabase`);
+    console.log(`[Gallery] Successfully saved ${data.type} with permanent URL.`);
   } catch (error) {
-    console.error('CRITICAL: Supabase save failure:', error);
+    console.error('[Gallery] CRITICAL: Save failure:', error);
   }
 };
