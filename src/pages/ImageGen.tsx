@@ -59,6 +59,24 @@ export function ImageGen() {
     }
   };
 
+  const downloadImage = async (url: string, filename: string) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+    } catch {
+      // fallback: open in new tab if fetch fails (e.g. strict CORS)
+      window.open(url, '_blank');
+    }
+  };
+
   return (
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
@@ -282,14 +300,13 @@ export function ImageGen() {
                           <Maximize2 className="w-4 h-4" />
                           FULL VIEW
                         </button>
-                        <a 
-                          href={resultUrl} 
-                          download={`banana-pro-${Date.now()}.png`}
+                        <button
+                          onClick={() => downloadImage(resultUrl!, `banana-pro-${Date.now()}.png`)}
                           className="bg-cyan-500 text-black px-8 py-3 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-cyan-400 transition-all flex items-center gap-2 shadow-xl shadow-cyan-500/20"
                         >
                           <Download className="w-4 h-4" />
                           DOWNLOAD
-                        </a>
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -389,14 +406,13 @@ export function ImageGen() {
               />
               
               <div className="flex items-center gap-4">
-                <a 
-                  href={resultUrl} 
-                  download={`banana-pro-${Date.now()}.png`}
+                <button
+                  onClick={() => downloadImage(resultUrl!, `banana-pro-${Date.now()}.png`)}
                   className="bg-cyan-500 text-black px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-sm hover:bg-cyan-400 transition-all flex items-center gap-3 shadow-2xl shadow-cyan-500/40"
                 >
                   <Download className="w-5 h-5" />
                   DOWNLOAD MASTER
-                </a>
+                </button>
                 <button 
                   onClick={() => setShowFullView(false)}
                   className="bg-zinc-800 text-white px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-sm hover:bg-zinc-700 transition-all border border-white/5"
