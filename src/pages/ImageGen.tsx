@@ -67,12 +67,16 @@ export function ImageGen() {
       const a = document.createElement('a');
       a.href = blobUrl;
       a.download = filename;
+      a.style.display = 'none';
       document.body.appendChild(a);
       a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(blobUrl);
+      // Delay revoke — Safari needs time to process the blob before it's freed
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(blobUrl);
+      }, 10000);
     } catch {
-      // fallback: open in new tab if fetch fails (e.g. strict CORS)
+      // fallback: open original URL in new tab if fetch fails
       window.open(url, '_blank');
     }
   };

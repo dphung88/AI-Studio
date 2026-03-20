@@ -31,12 +31,16 @@ export function Gallery() {
       const a = document.createElement('a');
       a.href = blobUrl;
       a.download = filename;
+      a.style.display = 'none';
       document.body.appendChild(a);
       a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(blobUrl);
+      // Delay revoke — Safari needs time to process the blob before it's freed
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(blobUrl);
+      }, 10000);
     } catch {
-      // CORS fallback: open in new tab so user can save manually
+      // Fallback: open original URL in new tab so user can save manually
       window.open(item.url, '_blank');
     } finally {
       setDownloadingId(null);
