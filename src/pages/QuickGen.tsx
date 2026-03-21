@@ -3,9 +3,10 @@ import { Loader2, Play, Image as ImageIcon, Video, FileText, Download, Terminal,
 import { motion, AnimatePresence } from 'motion/react';
 import { useSettings } from '../context/SettingsContext';
 import { useQuickGen } from '../context/QuickGenContext';
+import { fetchAndDownload } from '../utils/downloadHelper';
 
 export function QuickGen() {
-  const { customApiKey } = useSettings();
+  const { customApiKey, directoryHandle } = useSettings();
   const {
     isGenerating,
     resultUrl,
@@ -30,6 +31,15 @@ export function QuickGen() {
   const [hasApiKey, setHasApiKey] = useState(false);
   const [showFullView, setShowFullView] = useState(false);
   const logsContainerRef = useRef<HTMLDivElement>(null);
+
+  const handleDownloadVideo = async () => {
+    if (!resultUrl) return;
+    try {
+      await fetchAndDownload(resultUrl, `quickgen-${Date.now()}.mp4`, directoryHandle);
+    } catch (err) {
+      console.error('Download failed:', err);
+    }
+  };
 
   useEffect(() => {
     const checkKey = async () => {
@@ -334,13 +344,12 @@ export function QuickGen() {
                       >
                         <Maximize2 className="w-5 h-5" />
                       </button>
-                      <a 
-                        href={resultUrl} 
-                        download={`quickgen-${Date.now()}.mp4`}
+                      <button
+                        onClick={handleDownloadVideo}
                         className="bg-cyan-500 text-black p-3 rounded-xl hover:bg-cyan-400 transition-all shadow-xl shadow-cyan-500/20"
                       >
                         <Download className="w-5 h-5" />
-                      </a>
+                      </button>
                     </div>
                   </div>
 
@@ -442,14 +451,13 @@ export function QuickGen() {
               />
               
               <div className="flex items-center gap-4">
-                <a 
-                  href={resultUrl} 
-                  download={`quickgen-${Date.now()}.mp4`}
+                <button
+                  onClick={handleDownloadVideo}
                   className="bg-cyan-500 text-black px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-sm hover:bg-cyan-400 transition-all flex items-center gap-3 shadow-2xl shadow-cyan-500/40"
                 >
                   <Download className="w-5 h-5" />
                   DOWNLOAD MASTER
-                </a>
+                </button>
                 <button 
                   onClick={() => setShowFullView(false)}
                   className="bg-zinc-800 text-white px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-sm hover:bg-zinc-700 transition-all border border-white/5"
