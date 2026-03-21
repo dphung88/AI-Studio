@@ -630,9 +630,9 @@ export function StyleRemaker() {
                         {finalVideo && (
                           <button
                             onClick={downloadMaster}
-                            className="col-span-2 bg-amber-500 hover:bg-amber-400 text-black font-black uppercase tracking-wide py-3 px-3 rounded-xl flex items-center justify-center gap-2 text-[10px] whitespace-nowrap transition-all"
+                            className="col-span-2 bg-[#12121e] hover:bg-[#1c1c2e] border border-white/10 hover:border-white/20 text-zinc-500 hover:text-zinc-300 font-black uppercase tracking-[0.2em] py-4 px-3 rounded-xl flex items-center justify-center gap-3 text-[10px] whitespace-nowrap transition-all duration-200"
                           >
-                            <Download className="w-4 h-4 shrink-0" />
+                            <Download className="w-4 h-4 shrink-0 opacity-50" />
                             Download Master Video
                           </button>
                         )}
