@@ -189,13 +189,73 @@ export const AutoStoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     });
   };
 
-  const generateSceneWithRetry = async (prompt: string, aspectRatio: AspectRatio, model: string, maxRetries = 5) => {
+  // Extract the last frame of a video as base64 for continuity reference
+  const extractLastFrame = (videoUrl: string): Promise<{ data: string; mimeType: string } | null> => {
+    return new Promise((resolve) => {
+      try {
+        const video = document.createElement('video');
+        video.crossOrigin = 'anonymous';
+        video.muted = true;
+        video.playsInline = true;
+        video.style.display = 'none';
+        document.body.appendChild(video);
+
+        const cleanup = () => {
+          try {
+            video.pause();
+            video.removeAttribute('src');
+            video.load();
+            if (video.parentNode) video.parentNode.removeChild(video);
+          } catch (_) {}
+        };
+
+        video.onloadedmetadata = () => {
+          // Seek to 500ms before end to get last meaningful frame
+          video.currentTime = Math.max(0, video.duration - 0.5);
+        };
+
+        video.onseeked = () => {
+          try {
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth || 1280;
+            canvas.height = video.videoHeight || 720;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) { cleanup(); resolve(null); return; }
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const data = canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
+            cleanup();
+            resolve({ data, mimeType: 'image/jpeg' });
+          } catch (e) {
+            console.warn('[lastFrame] Canvas extract failed:', e);
+            cleanup();
+            resolve(null);
+          }
+        };
+
+        video.onerror = () => { cleanup(); resolve(null); };
+        setTimeout(() => { cleanup(); resolve(null); }, 10000); // safety timeout
+
+        video.src = videoUrl;
+        video.load();
+      } catch (e) {
+        resolve(null);
+      }
+    });
+  };
+
+  const generateSceneWithRetry = async (
+    prompt: string,
+    aspectRatio: AspectRatio,
+    model: string,
+    lastFrame?: { data: string; mimeType: string },
+    maxRetries = 5
+  ) => {
     let attempt = 0;
     const backoffDelays = [25000, 45000, 70000, 120000, 180000];
 
     while (attempt <= maxRetries) {
       try {
-        const operation = await generateVideo(prompt, undefined, undefined, aspectRatio, '720p', model);
+        const operation = await generateVideo(prompt, undefined, lastFrame, aspectRatio, '720p', model);
         const url = await pollVideoOperation(operation);
         return url;
       } catch (error: any) {
@@ -220,6 +280,8 @@ export const AutoStoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (isSequentialLoopRunning) return;
     isSequentialLoopRunning = true;
     const myGenerationId = currentGenerationId;
+    // Track last generated frame for character continuity
+    let previousSceneLastFrame: { data: string; mimeType: string } | undefined = undefined;
 
     try {
       while (true) {
@@ -266,8 +328,14 @@ export const AutoStoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         });
 
         try {
-          const url = await generateSceneWithRetry(fullPrompt, aspectRatio, veoModel);
+          // Pass last frame from previous scene for character continuity
+          const url = await generateSceneWithRetry(fullPrompt, aspectRatio, veoModel, previousSceneLastFrame);
           if (myGenerationId !== currentGenerationId) break;
+
+          // Extract last frame of this scene to use as reference for next scene
+          extractLastFrame(url).then(frame => {
+            if (frame) previousSceneLastFrame = frame;
+          });
 
           // Auto-save each scene video
           saveToStudioGallery({
@@ -276,12 +344,12 @@ export const AutoStoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             prompt: scene.prompt,
             settings: { source: 'auto-story-scene', index: sceneIndexToProcess, model: veoModel }
           });
-          
+
           setState(prev => {
             const newScenes = [...prev.scenesState];
-            newScenes[sceneIndexToProcess] = { 
+            newScenes[sceneIndexToProcess] = {
               ...newScenes[sceneIndexToProcess],
-              loading: false, url, resolution: '720p', status: 'done' 
+              loading: false, url, resolution: '720p', status: 'done'
             };
             const newState = { ...prev, scenesState: newScenes };
             
