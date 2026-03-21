@@ -10,6 +10,16 @@ const STYLES = [
   '3D Pixar', 'Anime', 'Realistic', 'Cartoon', 'Cyberpunk', 'Watercolor'
 ];
 
+// Parse raw JSON error strings into human-readable messages
+const parseErrorMessage = (err: string): string => {
+  try {
+    const parsed = JSON.parse(err);
+    return parsed?.error?.message || parsed?.message || err;
+  } catch {
+    return err;
+  }
+};
+
 export function AutoStoryGen() {
   const { customApiKey, storagePath } = useSettings();
   const {
@@ -576,10 +586,12 @@ export function AutoStoryGen() {
                                 <span className="text-[9px] font-black text-cyan-500/50 uppercase tracking-[0.2em]">Synthesizing...</span>
                               </div>
                             ) : scene.error ? (
-                              <div className="p-4 text-center w-full">
-                                <AlertCircle className="w-6 h-6 text-red-500 mx-auto mb-1" />
-                                <p className="text-[9px] text-red-400 line-clamp-2 mb-2 font-bold px-2">{scene.error}</p>
-                                <div className="flex items-center justify-center gap-2 w-full">
+                              <div className="p-3 text-center w-full overflow-hidden">
+                                <AlertCircle className="w-5 h-5 text-red-500 mx-auto mb-1" />
+                                <p className="text-[9px] text-red-400 line-clamp-2 mb-2 font-bold px-1 break-words overflow-hidden">
+                                  {parseErrorMessage(scene.error)}
+                                </p>
+                                <div className="flex items-center justify-center gap-2 w-full flex-wrap">
                                   <button
                                     onClick={() => retryVariant(sceneIndex)}
                                     className="flex items-center justify-center gap-2 px-4 py-2 bg-red-500/30 hover:bg-red-500/50 active:bg-red-500/70 text-red-300 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer select-none"
