@@ -9,9 +9,9 @@ export const concatVideos = async (
         return;
       }
 
+      // --- Video element for canvas capture (visual only) ---
       const video = document.createElement('video');
-      // Do NOT set crossOrigin — blob: URLs are same-origin and crossOrigin breaks them
-      // Do NOT set muted — we capture audio via Web Audio API (silent to speakers)
+      video.muted = true; // muted so canvas renders correctly; audio captured separately
       video.playsInline = true;
       video.style.display = 'none';
       document.body.appendChild(video);
@@ -23,23 +23,42 @@ export const concatVideos = async (
         return;
       }
 
-      // Web Audio API — capture audio from video without playing through speakers
+      // --- Web Audio API for TTS narration tracks ---
       let audioCtx: AudioContext | null = null;
-      let audioSource: MediaElementAudioSourceNode | null = null;
       let audioDestination: MediaStreamAudioDestinationNode | null = null;
+      let currentNarrationAudio: HTMLAudioElement | null = null;
+      let currentNarrationSource: MediaElementAudioSourceNode | null = null;
 
       try {
         audioCtx = new AudioContext();
         audioDestination = audioCtx.createMediaStreamDestination();
-        audioSource = audioCtx.createMediaElementSource(video);
-        // Connect source → destination only (NOT to audioCtx.destination = speakers)
-        audioSource.connect(audioDestination);
-        console.log('[Assembly] Web Audio API connected — audio will be captured');
-      } catch (audioErr) {
-        console.warn('[Assembly] Web Audio API unavailable, assembly will be silent:', audioErr);
-        audioCtx = null;
-        audioDestination = null;
+        console.log('[Assembly] Web Audio API ready for narration mixing');
+      } catch (e) {
+        console.warn('[Assembly] Web Audio API unavailable, narration will be skipped:', e);
       }
+
+      const playNarration = (audioUrl: string | undefined) => {
+        // Stop & disconnect previous narration
+        try {
+          if (currentNarrationSource) { currentNarrationSource.disconnect(); currentNarrationSource = null; }
+          if (currentNarrationAudio) { currentNarrationAudio.pause(); currentNarrationAudio = null; }
+        } catch (_) {}
+
+        if (!audioUrl || !audioCtx || !audioDestination) return;
+
+        try {
+          currentNarrationAudio = new Audio(audioUrl);
+          currentNarrationAudio.crossOrigin = 'anonymous';
+          currentNarrationSource = audioCtx.createMediaElementSource(currentNarrationAudio);
+          // Route narration to destination (captured in stream) — NOT to speakers
+          currentNarrationSource.connect(audioDestination);
+          currentNarrationAudio.play().catch(e =>
+            console.warn('[Assembly] Narration play failed:', e)
+          );
+        } catch (e) {
+          console.warn('[Assembly] Narration setup failed:', e);
+        }
+      };
 
       let currentIdx = 0;
       const chunks: Blob[] = [];
@@ -61,7 +80,8 @@ export const concatVideos = async (
           if (animationFrameId !== null) cancelAnimationFrame(animationFrameId);
           if (recorder && recorder.state !== 'inactive') recorder.stop();
           if (stream) stream.getTracks().forEach(t => t.stop());
-          if (audioSource) audioSource.disconnect();
+          if (currentNarrationSource) currentNarrationSource.disconnect();
+          if (currentNarrationAudio) { currentNarrationAudio.pause(); currentNarrationAudio = null; }
           if (audioCtx && audioCtx.state !== 'closed') audioCtx.close();
           video.pause();
           video.removeAttribute('src');
@@ -77,12 +97,16 @@ export const concatVideos = async (
         if (onProgress) onProgress(currentIdx / scenes.length);
 
         if (currentIdx < scenes.length) {
+          // Load next scene video + start its narration
+          playNarration(scenes[currentIdx].audioUrl);
           video.src = scenes[currentIdx].videoUrl;
           video.play().catch(e => {
             cleanup();
             reject(new Error(`Failed to play video ${currentIdx + 1}: ${e.message}`));
           });
         } else {
+          // All scenes done
+          playNarration(undefined); // stop narration
           isRecording = false;
           if (recorder && recorder.state !== 'inactive') {
             recorder.stop();
@@ -112,13 +136,13 @@ export const concatVideos = async (
               return;
             }
 
-            // Combine canvas video tracks + audio destination tracks
-            const combinedTracks = [...canvasStream.getVideoTracks()];
+            // Build combined stream: video (canvas) + audio (narration if available)
+            const tracks = [...canvasStream.getVideoTracks()];
             if (audioDestination && audioDestination.stream.getAudioTracks().length > 0) {
-              combinedTracks.push(...audioDestination.stream.getAudioTracks());
-              console.log('[Assembly] Audio track added to recording stream');
+              tracks.push(...audioDestination.stream.getAudioTracks());
+              console.log('[Assembly] Narration audio track added to recording');
             }
-            stream = new MediaStream(combinedTracks);
+            stream = new MediaStream(tracks);
 
             const mimeTypes = [
               'video/webm;codecs=vp9,opus',
@@ -132,31 +156,28 @@ export const concatVideos = async (
             for (const mimeType of mimeTypes) {
               if (MediaRecorder.isTypeSupported(mimeType)) {
                 options = { mimeType, videoBitsPerSecond: 8_000_000 };
-                console.log('[Assembly] Selected MIME type:', mimeType);
+                console.log('[Assembly] MIME type:', mimeType);
                 break;
               }
             }
 
             recorder = new MediaRecorder(stream, options);
-
-            recorder.ondataavailable = (e) => {
-              if (e.data && e.data.size > 0) chunks.push(e.data);
-            };
-
+            recorder.ondataavailable = (e) => { if (e.data?.size > 0) chunks.push(e.data); };
             recorder.onstop = () => {
               const blob = new Blob(chunks, { type: recorder?.mimeType || 'video/webm' });
               cleanup();
               resolve(URL.createObjectURL(blob));
             };
 
-            // Resume AudioContext if suspended (browser requires user gesture)
-            if (audioCtx && audioCtx.state === 'suspended') {
-              audioCtx.resume().catch(console.warn);
-            }
+            // Resume AudioContext if suspended (browser autoplay policy)
+            if (audioCtx?.state === 'suspended') audioCtx.resume().catch(console.warn);
 
             recorder.start(100);
             isRecording = true;
             drawFrame();
+
+            // Start first scene narration
+            playNarration(scenes[0].audioUrl);
           } catch (e: any) {
             cleanup();
             reject(new Error(`Failed to start recording: ${e.message}`));
@@ -167,13 +188,12 @@ export const concatVideos = async (
       video.onerror = () => {
         const code = video.error?.code ?? '?';
         const msg = video.error?.message || '';
-        // MediaError codes: 1=ABORTED 2=NETWORK 3=DECODE 4=SRC_NOT_SUPPORTED
         const detail = `code=${code}${msg ? ' ' + msg : ''}`;
         cleanup();
         reject(new Error(`Error loading video ${currentIdx + 1}: ${detail}`));
       };
 
-      // Load and play the first scene
+      // Start first scene
       video.src = scenes[0].videoUrl;
       video.play().catch(e => {
         cleanup();

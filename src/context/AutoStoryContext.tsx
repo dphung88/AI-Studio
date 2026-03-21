@@ -245,14 +245,19 @@ export const AutoStoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
         const { scriptData, aspectRatio, veoModel } = currentState;
         if (!scriptData) break;
-        
+
         const scene = scriptData.scenes[sceneIndexToProcess];
-        const taskKey = `${sceneIndexToProcess}`;
+
+        // Build character consistency prefix — inject all character descriptions into every prompt
+        const characterPrefix = scriptData.characters && scriptData.characters.length > 0
+          ? scriptData.characters.map(c => `${c.name}: ${c.description}`).join('. ') + '. Maintain consistent character appearance throughout. '
+          : '';
+        const fullPrompt = characterPrefix + scene.prompt;
 
         // Mark as processing
         setState(prev => {
           const newScenes = [...prev.scenesState];
-          newScenes[sceneIndexToProcess] = { 
+          newScenes[sceneIndexToProcess] = {
             ...newScenes[sceneIndexToProcess],
             loading: true,
             status: 'processing'
@@ -261,7 +266,7 @@ export const AutoStoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         });
 
         try {
-          const url = await generateSceneWithRetry(scene.prompt, aspectRatio, veoModel);
+          const url = await generateSceneWithRetry(fullPrompt, aspectRatio, veoModel);
           if (myGenerationId !== currentGenerationId) break;
 
           // Auto-save each scene video
@@ -309,8 +314,8 @@ export const AutoStoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         }
         
         if (myGenerationId !== currentGenerationId) break;
-        // Normal delay between scenes to protect quota
-        await new Promise(resolve => setTimeout(resolve, 25000));
+        // Small delay between scenes to protect quota
+        await new Promise(resolve => setTimeout(resolve, 8000));
       }
     } finally {
       if (myGenerationId === currentGenerationId) {
