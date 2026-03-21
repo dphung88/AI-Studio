@@ -2,6 +2,21 @@ import { GoogleGenAI } from '@google/genai';
 import { getApiKey, getLlmModel } from './apiConfig';
 import { saveToStudioGallery } from './supabase';
 
+/** Strip markdown code fences and extract the first JSON object or array */
+function extractJson(text: string): string {
+  // Remove ```json ... ``` or ``` ... ``` wrappers
+  let s = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+  // Try to find object {...}
+  const objStart = s.indexOf('{');
+  const objEnd = s.lastIndexOf('}');
+  if (objStart !== -1 && objEnd !== -1) return s.substring(objStart, objEnd + 1);
+  // Fallback: try array [...]
+  const arrStart = s.indexOf('[');
+  const arrEnd = s.lastIndexOf(']');
+  if (arrStart !== -1 && arrEnd !== -1) return s.substring(arrStart, arrEnd + 1);
+  return s;
+}
+
 function createWavFile(base64Data: string): string {
   try {
     const binaryString = window.atob(base64Data);
@@ -279,8 +294,8 @@ Respond ONLY with a valid JSON object in this exact format:
       contents: prompt
     });
     
-    const jsonResult = response.text || (response.candidates?.[0]?.content?.parts?.[0]?.text) || '{}';
-    return JSON.parse(jsonResult);
+    const rawText = response.text || (response.candidates?.[0]?.content?.parts?.[0]?.text) || '{}';
+    return JSON.parse(extractJson(rawText));
   } catch (error) {
     console.error("AutoScript Error:", error);
     throw error;
@@ -328,8 +343,8 @@ Respond ONLY with a valid JSON object in this exact format:
       contents: [{ role: 'user', parts: [...imageParts, { text: prompt }] }]
     });
     
-    const jsonResult = response.text || (response.candidates?.[0]?.content?.parts?.[0]?.text) || '{}';
-    return JSON.parse(jsonResult);
+    const rawText = response.text || (response.candidates?.[0]?.content?.parts?.[0]?.text) || '{}';
+    return JSON.parse(extractJson(rawText));
   } catch (error) {
     console.error("ScriptFromVideo Error:", error);
     throw error;
