@@ -6,6 +6,7 @@ import { useRemaker } from '../context/RemakerContext';
 import { useSettings } from '../context/SettingsContext';
 import { getApiKey, getLlmModel } from '../services/apiConfig';
 import { GoogleGenAI } from '@google/genai';
+import { fetchAndDownload, downloadFile } from '../utils/downloadHelper';
 
 const STYLES = [
   'Cartoon', '2D Flat', 'Anime', 'Stop Motion', 'Noir', 'Pixel Art', 
@@ -26,7 +27,7 @@ function ElapsedTime({ startTime }: { startTime: number }) {
 }
 
 export function StyleRemaker() {
-  const { projectName } = useSettings();
+  const { projectName, directoryHandle } = useSettings();
   const {
     step, setStep,
     originalVideoUrl, setOriginalVideoUrl,
@@ -210,19 +211,38 @@ export function StyleRemaker() {
     }
   };
 
-  const downloadAllClips = () => {
+  const downloadAllClips = async () => {
     addLog('Downloading all selected clips...', 'info');
-    remadeScenes.forEach((scene, i) => {
-      if (scene.url) {
-        const a = document.createElement('a');
-        a.href = scene.url;
-        a.download = `edison-yang-studio_scene_${String(i + 1).padStart(2, '0')}.mp4`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+    for (let i = 0; i < remadeScenes.length; i++) {
+      const scene = remadeScenes[i];
+      if (!scene.url) continue;
+      try {
+        const filename = `remaker_scene_${String(i + 1).padStart(2, '0')}.mp4`;
+        await fetchAndDownload(scene.url, filename, directoryHandle);
+      } catch (err) {
+        console.warn(`Failed to download scene ${i + 1}:`, err);
       }
-    });
+    }
     addLog('Clips downloaded successfully.', 'success');
+  };
+
+  const downloadMaster = async () => {
+    if (!finalVideo) return;
+    addLog('Downloading master video...', 'info');
+    try {
+      if (finalVideo.startsWith('blob:')) {
+        // blob: URL — fetch as blob directly
+        const res = await fetch(finalVideo);
+        const blob = await res.blob();
+        await downloadFile(blob, `remaker_master_${Date.now()}.mp4`, directoryHandle);
+      } else {
+        await fetchAndDownload(finalVideo, `remaker_master_${Date.now()}.mp4`, directoryHandle);
+      }
+      addLog('Master downloaded successfully.', 'success');
+    } catch (err) {
+      console.error('Download master failed:', err);
+      addLog('Master download failed.', 'error');
+    }
   };
 
   const allScenesGenerated = remadeScenes.length > 0 && remadeScenes.every(s => s.status === 'done');
@@ -594,11 +614,21 @@ export function StyleRemaker() {
                       <div className="mt-6 flex flex-wrap gap-3">
                         <button
                           onClick={assembleFinalVideo}
-                          className="flex-1 bg-cyan-500 hover:bg-cyan-400 text-black font-black uppercase tracking-[0.15em] py-3 rounded-xl flex items-center justify-center gap-2 text-[10px] transition-all"
+                          disabled={isAssembling}
+                          className="flex-1 bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 text-black font-black uppercase tracking-[0.15em] py-3 rounded-xl flex items-center justify-center gap-2 text-[10px] transition-all"
                         >
-                          <Film className="w-4 h-4" />
-                          Assemble Master
+                          {isAssembling ? <Loader2 className="w-4 h-4 animate-spin" /> : <Film className="w-4 h-4" />}
+                          {isAssembling ? `Assembling ${assemblyProgress}%` : 'Assemble Master'}
                         </button>
+                        {finalVideo && (
+                          <button
+                            onClick={downloadMaster}
+                            className="flex-1 bg-amber-500 hover:bg-amber-400 text-black font-black uppercase tracking-[0.15em] py-3 rounded-xl flex items-center justify-center gap-2 text-[10px] transition-all"
+                          >
+                            <Download className="w-4 h-4" />
+                            Download Master
+                          </button>
+                        )}
                         <button
                           onClick={downloadAllClips}
                           className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-black uppercase tracking-[0.15em] py-3 rounded-xl flex items-center justify-center gap-2 text-[10px] transition-all border border-zinc-700"
