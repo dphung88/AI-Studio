@@ -3,6 +3,7 @@ import { Image as ImageIcon, Sparkles, Download, Loader2, RefreshCw, Terminal, F
 import { motion, AnimatePresence } from 'motion/react';
 import { useSettings } from '../context/SettingsContext';
 import { useImageGen } from '../context/ImageGenContext';
+import { fetchAndDownload } from '../utils/downloadHelper';
 
 const ASPECT_RATIOS = ["1:1", "3:4", "4:3", "9:16", "16:9", "1:4", "1:8", "4:1", "8:1"];
 const IMAGE_SIZES = ["512px", "1K", "2K", "4K"];
@@ -13,7 +14,7 @@ const MODELS = [
 ];
 
 export function ImageGen() {
-  const { projectName, customApiKey } = useSettings();
+  const { projectName, customApiKey, directoryHandle } = useSettings();
   const {
     prompt, setPrompt,
     aspectRatio, setAspectRatio,
@@ -59,15 +60,14 @@ export function ImageGen() {
     }
   };
 
-  const downloadImage = (url: string, filename: string) => {
-    // Use Supabase Storage ?download= param — forces download on all browsers including Safari
-    const a = document.createElement('a');
-    a.href = `${url}?download=${filename}`;
-    a.download = filename;
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+  const downloadImage = async (url: string, filename: string) => {
+    try {
+      // fetchAndDownload: saves to user's chosen folder (File System Access API)
+      // or falls back to browser's Downloads folder
+      await fetchAndDownload(url, filename, directoryHandle);
+    } catch (err) {
+      console.error('Download failed:', err);
+    }
   };
 
   return (

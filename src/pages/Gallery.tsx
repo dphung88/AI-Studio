@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../services/supabase';
+import { useSettings } from '../context/SettingsContext';
+import { fetchAndDownload } from '../utils/downloadHelper';
 import { motion } from 'motion/react';
 import { Image as ImageIcon, Video, Download, Trash2, RefreshCw, AlertTriangle, Loader2 } from 'lucide-react';
 
@@ -17,37 +19,23 @@ const isValidStorageUrl = (url: string) =>
   url.startsWith('https://') && url.includes('/storage/');
 
 export function Gallery() {
+  const { directoryHandle } = useSettings();
   const [items, setItems] = useState<GalleryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
-  const downloadFile = async (item: GalleryItem) => {
+  const handleDownload = async (item: GalleryItem) => {
     if (!isValidStorageUrl(item.url)) {
       alert('This file has an expired temporary URL and cannot be downloaded. Please regenerate it.');
       return;
     }
     setDownloadingId(item.id);
     try {
-      // Fetch the file as blob (required for cross-origin download with filename)
-      const response = await fetch(item.url);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const blob = await response.blob();
-      const ext = item.type === 'video'
-        ? (blob.type.includes('mp4') ? 'mp4' : 'webm')
-        : (blob.type.includes('png') ? 'png' : 'jpg');
+      const ext = item.type === 'video' ? 'mp4' : 'jpg';
       const filename = `studio-${item.type}-${Date.now()}.${ext}`;
-      const blobUrl = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = blobUrl;
-      a.download = filename;
-      a.style.display = 'none';
-      document.body.appendChild(a);
-      a.click();
-      // Delay revoke so Safari has time to process before blob is freed
-      setTimeout(() => {
-        document.body.removeChild(a);
-        URL.revokeObjectURL(blobUrl);
-      }, 30000);
+      // fetchAndDownload: fetches blob from Supabase Storage, then saves via
+      // File System Access API (chosen folder) or falls back to browser Downloads
+      await fetchAndDownload(item.url, filename, directoryHandle);
     } catch (err) {
       console.error('Download failed:', err);
       alert('Download failed. Please try again.');
@@ -179,7 +167,7 @@ export function Gallery() {
                 {/* Hover Overlay */}
                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4">
                   <button
-                    onClick={() => downloadFile(item)}
+                    onClick={() => handleDownload(item)}
                     disabled={downloadingId === item.id || !isValidStorageUrl(item.url)}
                     className="p-3 bg-cyan-500 text-black rounded-full hover:bg-cyan-400 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                     title={isValidStorageUrl(item.url) ? 'Download' : 'Expired URL — cannot download'}
