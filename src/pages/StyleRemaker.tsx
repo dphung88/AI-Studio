@@ -611,31 +611,31 @@ export function StyleRemaker() {
 
                     {/* Action buttons */}
                     {allScenesGenerated && (
-                      <div className="mt-6 flex flex-wrap gap-3">
+                      <div className="mt-6 grid grid-cols-2 gap-2">
                         <button
                           onClick={assembleFinalVideo}
                           disabled={isAssembling}
-                          className="flex-1 bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 text-black font-black uppercase tracking-[0.15em] py-3 rounded-xl flex items-center justify-center gap-2 text-[10px] transition-all"
+                          className="bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 text-black font-black uppercase tracking-wide py-3 px-3 rounded-xl flex items-center justify-center gap-2 text-[10px] whitespace-nowrap transition-all"
                         >
-                          {isAssembling ? <Loader2 className="w-4 h-4 animate-spin" /> : <Film className="w-4 h-4" />}
-                          {isAssembling ? `Assembling ${assemblyProgress}%` : 'Assemble Master'}
+                          {isAssembling ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Film className="w-4 h-4 shrink-0" />}
+                          {isAssembling ? `${assemblyProgress}%` : 'Assemble'}
+                        </button>
+                        <button
+                          onClick={downloadAllClips}
+                          className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-black uppercase tracking-wide py-3 px-3 rounded-xl flex items-center justify-center gap-2 text-[10px] whitespace-nowrap transition-all border border-zinc-700"
+                        >
+                          <Download className="w-4 h-4 shrink-0" />
+                          Download Clips
                         </button>
                         {finalVideo && (
                           <button
                             onClick={downloadMaster}
-                            className="flex-1 bg-amber-500 hover:bg-amber-400 text-black font-black uppercase tracking-[0.15em] py-3 rounded-xl flex items-center justify-center gap-2 text-[10px] transition-all"
+                            className="col-span-2 bg-amber-500 hover:bg-amber-400 text-black font-black uppercase tracking-wide py-3 px-3 rounded-xl flex items-center justify-center gap-2 text-[10px] whitespace-nowrap transition-all"
                           >
-                            <Download className="w-4 h-4" />
-                            Download Master
+                            <Download className="w-4 h-4 shrink-0" />
+                            Download Master Video
                           </button>
                         )}
-                        <button
-                          onClick={downloadAllClips}
-                          className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-black uppercase tracking-[0.15em] py-3 rounded-xl flex items-center justify-center gap-2 text-[10px] transition-all border border-zinc-700"
-                        >
-                          <Download className="w-4 h-4" />
-                          Download Clips
-                        </button>
                       </div>
                     )}
                   </div>
