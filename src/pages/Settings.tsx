@@ -3,6 +3,7 @@ import { Settings as SettingsIcon, Save, RefreshCw, FolderOpen, Database, Layout
 import { motion } from 'motion/react';
 import { useSettings } from '../context/SettingsContext';
 import { GoogleGenAI } from '@google/genai';
+import { checkStorageBucket } from '../services/supabase';
 
 export function Settings() {
   const { 
@@ -19,6 +20,8 @@ export function Settings() {
   const [saved, setSaved] = useState(false);
   const [testingKey, setTestingKey] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [checkingBucket, setCheckingBucket] = useState(false);
+  const [bucketResult, setBucketResult] = useState<{ ok: boolean; error?: string } | null>(null);
 
   const handleSave = () => {
     setSaved(true);
@@ -321,6 +324,47 @@ export function Settings() {
             <h4 className="text-white font-bold uppercase tracking-tight mb-1">Local Persistence</h4>
             <p className="text-zinc-500 text-sm">Your settings are saved locally in your browser. They will persist across sessions but are specific to this device and browser.</p>
           </div>
+        </div>
+
+        {/* Supabase Storage Health Check */}
+        <div className="bg-zinc-950 border border-zinc-800 rounded-3xl p-6 shadow-xl">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="bg-cyan-500/10 p-3 rounded-xl">
+                <Database className="w-6 h-6 text-cyan-500" />
+              </div>
+              <div>
+                <h4 className="text-white font-bold uppercase tracking-tight">Storage Bucket</h4>
+                <p className="text-zinc-500 text-xs mt-0.5">Verify Supabase Storage is ready for video/image uploads</p>
+              </div>
+            </div>
+            <button
+              onClick={async () => {
+                setCheckingBucket(true);
+                setBucketResult(null);
+                const result = await checkStorageBucket();
+                setBucketResult(result);
+                setCheckingBucket(false);
+              }}
+              disabled={checkingBucket}
+              className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-widest transition-all border border-zinc-700 flex items-center gap-2 disabled:opacity-50"
+            >
+              {checkingBucket ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              Check
+            </button>
+          </div>
+          {bucketResult && (
+            <div className={`p-4 rounded-xl border flex items-start gap-3 text-sm ${
+              bucketResult.ok
+                ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-400'
+                : 'bg-red-500/5 border-red-500/20 text-red-400'
+            }`}>
+              {bucketResult.ok
+                ? <><CheckCircle2 className="w-5 h-5 shrink-0" /><span>Bucket "studio-media" is accessible. Video uploads should work.</span></>
+                : <><AlertCircle className="w-5 h-5 shrink-0" /><div><p className="font-bold">Bucket error: {bucketResult.error}</p><p className="text-xs mt-1 opacity-80">Go to Supabase Dashboard → Storage → Create bucket "studio-media" → set Public → add INSERT policy for anon role.</p></div></>
+              }
+            </div>
+          )}
         </div>
       </div>
     </motion.div>

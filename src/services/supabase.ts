@@ -83,33 +83,61 @@ export const saveToStudioGallery = async (data: {
   settings?: any;
 }) => {
   if (!supabaseUrl || !supabaseAnonKey) {
-    console.warn('Supabase credentials missing, skipping auto-save.');
+    console.warn('[Gallery] Supabase credentials missing, skipping auto-save.');
     return;
   }
 
+  let permanentUrl: string;
+
   try {
     console.log(`[Gallery] Uploading ${data.type} to Supabase Storage...`);
-    const permanentUrl = await resolveToStorageUrl(data.url, data.type);
-    console.log(`[Gallery] Storage upload done. Saving metadata...`);
+    permanentUrl = await resolveToStorageUrl(data.url, data.type);
+    console.log(`[Gallery] Storage upload done → ${permanentUrl}`);
+  } catch (storageErr: any) {
+    // Storage upload failed — diagnose clearly
+    console.error('[Gallery] ❌ Supabase Storage upload failed:', storageErr?.message || storageErr);
+    console.error('[Gallery] → Check: bucket "studio-media" exists? Bucket is public? RLS allows insert?');
 
+    // For images with data: URL — store directly in DB (never expires)
+    if (data.url.startsWith('data:')) {
+      console.warn('[Gallery] Falling back to storing data: URL directly in DB (no storage)');
+      permanentUrl = data.url;
+    } else {
+      // For blob/https URLs that failed to upload — skip saving to avoid dead URLs in DB
+      console.error('[Gallery] Cannot save video with temporary URL. Skipping gallery save.');
+      return;
+    }
+  }
+
+  try {
     const { error } = await supabase
       .from('studio_gallery')
-      .insert([
-        {
-          type: data.type,
-          url: permanentUrl,
-          prompt: data.prompt,
-          settings: data.settings,
-          created_at: new Date().toISOString(),
-        },
-      ]);
+      .insert([{
+        type: data.type,
+        url: permanentUrl,
+        prompt: data.prompt,
+        settings: data.settings,
+        created_at: new Date().toISOString(),
+      }]);
 
     if (error) {
-      console.error('Supabase DB error:', error);
+      console.error('[Gallery] ❌ Supabase DB insert failed:', error.message, error.details, error.hint);
       throw error;
     }
-    console.log(`[Gallery] Successfully saved ${data.type} with permanent URL.`);
-  } catch (error) {
-    console.error('[Gallery] CRITICAL: Save failure:', error);
+    console.log(`[Gallery] ✅ Saved ${data.type} to gallery.`);
+  } catch (dbErr: any) {
+    console.error('[Gallery] ❌ DB save failure:', dbErr?.message || dbErr);
+  }
+};
+
+// Diagnostic: check if Supabase Storage bucket is accessible
+export const checkStorageBucket = async (): Promise<{ ok: boolean; error?: string }> => {
+  try {
+    const { data, error } = await supabase.storage.getBucket(STORAGE_BUCKET);
+    if (error) return { ok: false, error: error.message };
+    if (!data) return { ok: false, error: 'Bucket not found' };
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, error: e?.message || 'Unknown error' };
   }
 };
