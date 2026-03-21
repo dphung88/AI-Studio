@@ -131,11 +131,22 @@ export const saveToStudioGallery = async (data: {
 };
 
 // Diagnostic: check if Supabase Storage bucket is accessible
+// Uses list() instead of getBucket() — getBucket() is admin-only and fails with anon key
 export const checkStorageBucket = async (): Promise<{ ok: boolean; error?: string }> => {
   try {
-    const { data, error } = await supabase.storage.getBucket(STORAGE_BUCKET);
-    if (error) return { ok: false, error: error.message };
-    if (!data) return { ok: false, error: 'Bucket not found' };
+    // Step 1: Check READ — list files in bucket (needs SELECT policy)
+    const { error: listError } = await supabase.storage.from(STORAGE_BUCKET).list('', { limit: 1 });
+    if (listError) return { ok: false, error: `Read failed: ${listError.message}` };
+
+    // Step 2: Check WRITE — upload a tiny test file (needs INSERT policy)
+    const testBlob = new Blob(['ok'], { type: 'text/plain' });
+    const testPath = `_healthcheck_${Date.now()}.txt`;
+    const { error: uploadError } = await supabase.storage.from(STORAGE_BUCKET).upload(testPath, testBlob);
+    if (uploadError) return { ok: false, error: `Write failed: ${uploadError.message}` };
+
+    // Cleanup test file
+    await supabase.storage.from(STORAGE_BUCKET).remove([testPath]);
+
     return { ok: true };
   } catch (e: any) {
     return { ok: false, error: e?.message || 'Unknown error' };
