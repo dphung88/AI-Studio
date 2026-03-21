@@ -120,11 +120,22 @@ export const concatVideos = async (
       let isRecording = false;
 
       const drawFrame = () => {
-        if (isRecording && !video.paused && !video.ended) {
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        if (isRecording) {
+          // Always clear to black — guarantees MediaRecorder receives non-empty chunks
+          ctx.fillStyle = '#000000';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+          if (!video.paused && !video.ended) {
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          }
+
           if (showSubtitles) {
             const sub = scenes[currentIdx]?.subtitle;
-            if (sub) drawSubtitle(ctx, sub, canvas.width, canvas.height);
+            if (sub) {
+              ctx.save();
+              drawSubtitle(ctx, sub, canvas.width, canvas.height);
+              ctx.restore();
+            }
           }
         }
         animationFrameId = requestAnimationFrame(drawFrame);

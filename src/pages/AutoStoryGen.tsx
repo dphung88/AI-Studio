@@ -573,11 +573,11 @@ export function AutoStoryGen() {
 
                         {/* Right: Video */}
                         <div className="w-full md:w-80 shrink-0 border-l border-zinc-800">
-                          <div className="aspect-video bg-black relative flex items-center justify-center overflow-hidden h-full">
+                          <div className="aspect-video bg-black relative flex items-center justify-center">
                             {scene.url ? (
-                              <video 
-                                src={scene.url} 
-                                className="w-full h-full object-cover"
+                              <video
+                                src={scene.url}
+                                className="w-full h-full object-contain"
                                 controls
                               />
                             ) : scene.loading ? (
