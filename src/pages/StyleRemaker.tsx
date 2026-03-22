@@ -42,11 +42,14 @@ export function StyleRemaker() {
     finalVideo, isAssembling, assemblyProgress,
     logs,
     startGeneration, reGenerateAll, retryVariant, assembleFinalVideo, reset, showToast,
-    openKeySelection, repromptScene, addLog
+    openKeySelection, repromptScene, repromptSceneWithPrompt, addLog,
+    characterStyle, setCharacterStyle
   } = useRemaker();
 
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showFinalModal, setShowFinalModal] = useState(false);
+  // Re-prompt modal state
+  const [repromptModal, setRepromptModal] = useState<{ open: boolean; index: number; text: string }>({ open: false, index: 0, text: '' });
   const logsEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -460,6 +463,17 @@ export function StyleRemaker() {
                         </button>
                       ))}
                     </div>
+                    {/* Character consistency */}
+                    <div className="mb-6">
+                      <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-2 block">Character Consistency (optional)</label>
+                      <input
+                        type="text"
+                        value={characterStyle}
+                        onChange={e => setCharacterStyle(e.target.value)}
+                        placeholder="e.g. Young woman, red hair, blue jacket — applied to all scenes"
+                        className="w-full bg-zinc-900/60 border border-zinc-700 rounded-xl px-4 py-2.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-cyan-500/50"
+                      />
+                    </div>
                     <div className="flex justify-end">
                       <button
                         onClick={startGeneration}
@@ -585,13 +599,28 @@ export function StyleRemaker() {
                             <div className="flex items-center gap-2">
                               {isProcessing && s.startTime && <ElapsedTime startTime={s.startTime} />}
                               {s.status === 'done' ? (
-                                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                                <div className="flex items-center gap-1.5">
+                                  <button
+                                    onClick={() => setRepromptModal({ open: true, index: i, text: s.customPrompt || '' })}
+                                    className="flex items-center gap-1 text-[9px] font-black text-amber-400 hover:text-amber-200 uppercase tracking-wider border border-amber-500/30 hover:border-amber-400 bg-amber-500/10 hover:bg-amber-500/20 px-2 py-0.5 rounded-lg transition-all cursor-pointer"
+                                    title="Re-prompt this scene"
+                                  >
+                                    <RefreshCw className="w-2.5 h-2.5" /> Re-prompt
+                                  </button>
+                                  <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                                </div>
                               ) : s.status === 'error' ? (
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1.5">
+                                  <button
+                                    onClick={() => setRepromptModal({ open: true, index: i, text: s.customPrompt || '' })}
+                                    className="flex items-center gap-1 text-[9px] font-black text-amber-400 hover:text-amber-200 uppercase tracking-wider border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 rounded-lg cursor-pointer"
+                                  >
+                                    <RefreshCw className="w-2.5 h-2.5" /> Re-prompt
+                                  </button>
                                   <AlertCircle className="w-4 h-4 text-red-500" />
                                   <button
                                     onClick={() => retryVariant(i)}
-                                    className="flex items-center gap-1.5 text-[10px] font-black text-red-400 hover:text-red-200 active:text-white uppercase tracking-wider border border-red-500/40 hover:border-red-400 bg-red-500/10 hover:bg-red-500/20 px-3 py-1 rounded-lg transition-all cursor-pointer select-none"
+                                    className="flex items-center gap-1.5 text-[10px] font-black text-red-400 hover:text-red-200 uppercase tracking-wider border border-red-500/40 bg-red-500/10 px-3 py-1 rounded-lg transition-all cursor-pointer"
                                   >
                                     <RefreshCw className="w-3 h-3" /> Retry
                                   </button>
@@ -681,6 +710,40 @@ export function StyleRemaker() {
           </motion.div>
         </AnimatePresence>
       </div>
+
+      {/* Re-prompt Modal */}
+      {repromptModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 w-full max-w-lg shadow-2xl">
+            <h3 className="text-sm font-black text-white uppercase tracking-widest mb-1">Re-prompt Scene {repromptModal.index + 1}</h3>
+            <p className="text-xs text-zinc-400 mb-4">Enter a new prompt to regenerate this scene with different content.</p>
+            <textarea
+              autoFocus
+              rows={5}
+              value={repromptModal.text}
+              onChange={e => setRepromptModal(m => ({ ...m, text: e.target.value }))}
+              placeholder="e.g. A cinematic shot of a woman walking through Tokyo streets at night in anime style, neon lights reflecting on wet pavement..."
+              className="w-full bg-zinc-800 border border-zinc-600 rounded-xl px-4 py-3 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-cyan-500/50 resize-none mb-4"
+            />
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setRepromptModal({ open: false, index: 0, text: '' })}
+                className="px-5 py-2 rounded-xl text-xs font-black uppercase tracking-wider text-zinc-400 border border-zinc-700 hover:border-zinc-500 transition-all"
+              >Cancel</button>
+              <button
+                onClick={() => {
+                  if (repromptModal.text.trim()) {
+                    repromptSceneWithPrompt(repromptModal.index, repromptModal.text.trim());
+                    setRepromptModal({ open: false, index: 0, text: '' });
+                  }
+                }}
+                disabled={!repromptModal.text.trim()}
+                className="px-5 py-2 rounded-xl text-xs font-black uppercase tracking-wider bg-cyan-500 hover:bg-cyan-400 disabled:opacity-40 text-black transition-all"
+              >Regenerate Scene</button>
+            </div>
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 }

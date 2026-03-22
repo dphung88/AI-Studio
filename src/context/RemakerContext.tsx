@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { generateVideo, pollVideoOperation } from '../services/veoService';
 import { concatVideos } from '../services/videoAssemblyService';
-import { improveScenePrompt } from '../services/geminiService';
+import { improveScenePrompt, generateSpeech } from '../services/geminiService';
 import { saveToStudioGallery } from '../services/supabase';
 import { storeVideoBlob, getVideoBlob, clearAllVideoBlobs } from '../services/videoStorage';
 import { useSettings } from './SettingsContext';
@@ -14,6 +14,10 @@ export interface RemadeScene {
   error?: string;
   startTime?: number;
   status?: 'queued' | 'processing' | 'done' | 'error';
+  audioUrl?: string;      // TTS narration URL
+  narration?: string;     // narration text for this scene
+  customPrompt?: string;  // user-overridden prompt for this scene
+  savedUrl?: string;      // persisted Supabase URL
 }
 
 export interface SystemLog {
@@ -30,6 +34,7 @@ export interface RemakerState {
   scenes: any[];
   selectedStyle: string;
   customStyle: string;
+  characterStyle: string;  // character consistency description
   aspectRatio: AspectRatio;
   veoModel: string;
   isGenerating: boolean;
@@ -50,6 +55,7 @@ const initialState: RemakerState = {
   scenes: [],
   selectedStyle: 'Anime',
   customStyle: '',
+  characterStyle: '',
   aspectRatio: '16:9',
   veoModel: 'veo-3.1-fast-generate-preview',
   isGenerating: false,
@@ -77,12 +83,14 @@ interface RemakerContextType extends RemakerState {
   setCustomStyle: (style: string) => void;
   setAspectRatio: (ratio: AspectRatio) => void;
   setVeoModel: (model: string) => void;
+  setCharacterStyle: (style: string) => void;
   startGeneration: () => void;
   reGenerateAll: () => void;
   retryVariant: (sceneIndex: number) => void;
   assembleFinalVideo: () => void;
   resumeGeneration: () => void;
   repromptScene: (index: number) => Promise<void>;
+  repromptSceneWithPrompt: (index: number, newPrompt: string) => void;
   reset: () => void;
   openKeySelection: () => Promise<void>;
   checkApiKey: () => Promise<boolean>;
@@ -307,19 +315,19 @@ export const RemakerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const taskKey = `${sceneIndexToProcess}`;
         activeTasks.set(taskKey, true);
 
-        const { scenes, selectedStyle, customStyle, videoDuration, targetSceneCount, aspectRatio, veoModel } = currentState;
+        const { scenes, selectedStyle, customStyle, characterStyle, videoDuration, targetSceneCount, aspectRatio, veoModel, remadeScenes } = currentState;
         const styleToUse = selectedStyle === 'Custom' ? customStyle : selectedStyle;
         const scene = scenes[sceneIndexToProcess];
         const duration = Math.min(8, Math.ceil(videoDuration / targetSceneCount));
-        
-        // Build prompt using the latest edited scene data
-        let prompt = `A cinematic video in ${styleToUse} style. 
-          Action: ${scene.action}. 
-          ${scene.characters ? `Characters: ${scene.characters}.` : ''} 
-          ${scene.setting ? `Setting: ${scene.setting}.` : ''} 
-          Atmosphere: ${scene.mood}. 
-          Duration: ${duration} seconds. 
-          High quality, detailed textures, consistent lighting.`;
+
+        // Character consistency prefix
+        const charPrefix = characterStyle ? `Character style: ${characterStyle}. Maintain consistent character appearance. ` : '';
+
+        // Use custom prompt if set by user (re-prompt feature), otherwise build from scene data
+        const customPrompt = remadeScenes[sceneIndexToProcess]?.customPrompt;
+        let prompt = customPrompt
+          ? `${charPrefix}${customPrompt}`
+          : `${charPrefix}A cinematic video in ${styleToUse} style. Action: ${scene.action}. ${scene.characters ? `Characters: ${scene.characters}.` : ''} ${scene.setting ? `Setting: ${scene.setting}.` : ''} Atmosphere: ${scene.mood}. Duration: ${duration} seconds. High quality, detailed textures, consistent lighting.`;
 
         addLog(`Processing Scene ${sceneIndexToProcess + 1}/${currentState.remadeScenes.length}...`, 'info');
 
@@ -354,22 +362,41 @@ export const RemakerProvider: React.FC<{ children: React.ReactNode }> = ({ child
           }
 
           // Auto-save each scene video to Supabase
-          saveToStudioGallery({
-            type: 'video',
-            url,
-            prompt,
-            settings: { source: 'remaker-scene', index: sceneIndexToProcess, model: veoModel }
-          });
-          
+          let savedUrl: string | undefined;
+          try {
+            const { data: saved } = await saveToStudioGallery({
+              type: 'video',
+              url,
+              prompt,
+              settings: { source: 'remaker-scene', index: sceneIndexToProcess, model: veoModel }
+            }) as any;
+            savedUrl = saved?.publicUrl || undefined;
+          } catch (_) {}
+
+          // Generate TTS narration for this scene
+          const narrationText = scenes[sceneIndexToProcess]?.action || '';
+          let audioUrl: string | undefined;
+          if (narrationText) {
+            try {
+              audioUrl = await generateSpeech(narrationText, 'en');
+              addLog(`Scene ${sceneIndexToProcess + 1} narration generated.`, 'info');
+            } catch (ttsErr) {
+              console.warn('[RemakerContext] TTS failed:', ttsErr);
+            }
+          }
+
           let isAllDone = false;
           setState(prev => {
             const newScenes = [...prev.remadeScenes];
-            newScenes[sceneIndexToProcess] = { 
-              ...newScenes[sceneIndexToProcess], 
-              loading: false, 
-              url, 
+            newScenes[sceneIndexToProcess] = {
+              ...newScenes[sceneIndexToProcess],
+              loading: false,
+              url,
+              savedUrl,
+              audioUrl,
+              narration: narrationText,
               status: 'done',
-              startTime: undefined 
+              startTime: undefined
             };
             
             // Check if this was the last scene
@@ -559,7 +586,7 @@ export const RemakerProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     const scenesToMerge = freshScenes
       .filter(s => s.url)
-      .map(s => ({ videoUrl: s.url }));
+      .map(s => ({ videoUrl: s.savedUrl || s.url, audioUrl: s.audioUrl }));
 
     if (scenesToMerge.length === 0) {
       addLog('Assembly failed: No successful scenes found to merge.', 'error');
@@ -614,6 +641,27 @@ export const RemakerProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   };
 
+  // User types their own new prompt for a scene → queue it for regeneration
+  const repromptSceneWithPrompt = (index: number, newPrompt: string) => {
+    currentGenerationId++;
+    isSequentialLoopRunning = false;
+    setState(prev => {
+      const newScenes = [...prev.remadeScenes];
+      newScenes[index] = {
+        ...newScenes[index],
+        customPrompt: newPrompt,
+        status: 'queued',
+        loading: false,
+        url: '',
+        error: undefined,
+      };
+      const newState = { ...prev, remadeScenes: newScenes, isGenerating: true };
+      stateRef.current = newState;
+      return newState;
+    });
+    setTimeout(processQueue, 100);
+  };
+
   const repromptScene = async (index: number) => {
     const { scenes, selectedStyle, customStyle } = stateRef.current;
     const scene = scenes[index];
@@ -656,6 +704,7 @@ export const RemakerProvider: React.FC<{ children: React.ReactNode }> = ({ child
     <RemakerContext.Provider value={{
       ...state,
       setStep: (step) => updateState({ step }),
+      setCharacterStyle: (characterStyle) => updateState({ characterStyle }),
       setOriginalVideoUrl: (url) => updateState({ originalVideoUrl: url }),
       setVideoDuration: (duration) => updateState({ videoDuration: duration }),
       setTargetSceneCount: (count) => updateState({ targetSceneCount: count }),
@@ -669,6 +718,8 @@ export const RemakerProvider: React.FC<{ children: React.ReactNode }> = ({ child
       retryVariant,
       assembleFinalVideo,
       resumeGeneration,
+      repromptScene,
+      repromptSceneWithPrompt,
       reset,
       openKeySelection,
       checkApiKey,
