@@ -22,6 +22,11 @@ export interface SceneState {
   audioUrl?: string;
   audioLoading?: boolean;
   audioError?: string;
+  customPrompt?: string;     // user's custom reprompt override
+  url2?: string;             // alternative variant URL
+  loading2?: boolean;        // loading state for alt variant
+  error2?: string;           // error for alt variant
+  activeVariant?: 1 | 2;    // which variant is currently selected (default 1)
 }
 
 export interface AutoStoryState {
@@ -45,6 +50,7 @@ export interface AutoStoryState {
   workflowError: string | null;
   hasApiKey: boolean;
   showSubtitles: boolean;
+  characterStyle: string;
 }
 
 const initialState: AutoStoryState = {
@@ -67,7 +73,8 @@ const initialState: AutoStoryState = {
   assemblyError: null,
   workflowError: null,
   hasApiKey: false,
-  showSubtitles: true
+  showSubtitles: true,
+  characterStyle: ''
 };
 
 let isSequentialLoopRunning = false;
@@ -91,6 +98,10 @@ interface AutoStoryContextType extends AutoStoryState {
   openKeySelection: () => Promise<void>;
   checkApiKey: () => Promise<boolean>;
   openDirectoryPicker: () => Promise<void>;
+  setCharacterStyle: (style: string) => void;
+  repromptScene: (index: number, customPrompt: string) => void;
+  generateAltVariant: (index: number) => Promise<void>;
+  switchVariant: (index: number, variant: 1 | 2) => void;
 }
 
 const AutoStoryContext = createContext<AutoStoryContextType | undefined>(undefined);
@@ -313,7 +324,10 @@ export const AutoStoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         const characterPrefix = scriptData.characters && scriptData.characters.length > 0
           ? scriptData.characters.map(c => `${c.name}: ${c.description}`).join('. ') + '. Maintain consistent character appearance throughout. '
           : '';
-        const fullPrompt = characterPrefix + scene.prompt;
+        const characterLock = currentState.characterStyle ? `Character style lock: ${currentState.characterStyle}. ` : '';
+        // Use scene's customPrompt if set (from reprompt), otherwise use original
+        const sceneCustomPrompt = currentState.scenesState[sceneIndexToProcess]?.customPrompt;
+        const fullPrompt = characterLock + characterPrefix + (sceneCustomPrompt || scene.prompt);
 
         // Mark as processing
         setState(prev => {
@@ -554,7 +568,7 @@ export const AutoStoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const assembleVideo = async () => {
     const { scenesState, scriptData, showSubtitles } = state;
     const scenesToMerge = scenesState.map((s, i) => ({
-      videoUrl: s.url,
+      videoUrl: s.activeVariant === 2 && s.url2 ? s.url2 : s.url,
       audioUrl: s.audioUrl,
       subtitle: scriptData?.scenes[i]?.narration
     })).filter(s => s.videoUrl) as { videoUrl: string, audioUrl?: string; subtitle?: string }[];
@@ -642,6 +656,86 @@ export const AutoStoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return false;
   };
 
+  const repromptScene = (sceneIndex: number, customPrompt: string) => {
+    if (!stateRef.current.hasApiKey && !customApiKey) {
+      openKeySelection();
+      return;
+    }
+    currentGenerationId++;
+    isSequentialLoopRunning = false;
+
+    setState(prev => {
+      const newScenes = [...prev.scenesState];
+      newScenes[sceneIndex] = {
+        ...newScenes[sceneIndex],
+        customPrompt,
+        loading: false,
+        status: 'queued',
+        error: undefined,
+        url: undefined,
+        url2: undefined,
+        activeVariant: 1,
+      };
+      const newState = { ...prev, scenesState: newScenes, isGeneratingVideos: true };
+      const totalTasks = prev.scriptData?.scenes.length || 0;
+      const completedTasks = newState.scenesState.filter(s => s.status === 'done' || s.status === 'error').length;
+      newState.generationProgress = { current: completedTasks, total: totalTasks };
+      stateRef.current = newState;
+      return newState;
+    });
+
+    setTimeout(processQueue, 100);
+  };
+
+  const generateAltVariant = async (sceneIndex: number) => {
+    if (!stateRef.current.hasApiKey && !customApiKey) {
+      openKeySelection();
+      return;
+    }
+    const { scriptData, aspectRatio, veoModel, characterStyle } = stateRef.current;
+    if (!scriptData) return;
+
+    const scene = scriptData.scenes[sceneIndex];
+    const sceneState = stateRef.current.scenesState[sceneIndex];
+
+    setState(prev => {
+      const newScenes = [...prev.scenesState];
+      newScenes[sceneIndex] = { ...newScenes[sceneIndex], loading2: true, error2: undefined };
+      return { ...prev, scenesState: newScenes };
+    });
+
+    try {
+      const characterPrefix = scriptData.characters && scriptData.characters.length > 0
+        ? scriptData.characters.map(c => `${c.name}: ${c.description}`).join('. ') + '. Maintain consistent character appearance throughout. '
+        : '';
+      const characterLock = characterStyle ? `Character style lock: ${characterStyle}. ` : '';
+      const fullPrompt = characterLock + characterPrefix + (sceneState.customPrompt || scene.prompt);
+
+      const url2 = await generateSceneWithRetry(fullPrompt, aspectRatio, veoModel);
+
+      setState(prev => {
+        const newScenes = [...prev.scenesState];
+        newScenes[sceneIndex] = { ...newScenes[sceneIndex], loading2: false, url2, activeVariant: 2 };
+        stateRef.current = { ...prev, scenesState: newScenes };
+        return stateRef.current;
+      });
+    } catch (error: any) {
+      setState(prev => {
+        const newScenes = [...prev.scenesState];
+        newScenes[sceneIndex] = { ...newScenes[sceneIndex], loading2: false, error2: error?.message || 'Alt generation failed' };
+        return { ...prev, scenesState: newScenes };
+      });
+    }
+  };
+
+  const switchVariant = (sceneIndex: number, variant: 1 | 2) => {
+    setState(prev => {
+      const newScenes = [...prev.scenesState];
+      newScenes[sceneIndex] = { ...newScenes[sceneIndex], activeVariant: variant };
+      return { ...prev, scenesState: newScenes };
+    });
+  };
+
     return (
     <AutoStoryContext.Provider value={{
       ...state,
@@ -661,7 +755,11 @@ export const AutoStoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setShowSubtitles: (show) => updateState({ showSubtitles: show }),
       openKeySelection,
       checkApiKey,
-      openDirectoryPicker
+      openDirectoryPicker,
+      setCharacterStyle: (style) => updateState({ characterStyle: style }),
+      repromptScene,
+      generateAltVariant,
+      switchVariant,
     }}>
       {children}
     </AutoStoryContext.Provider>

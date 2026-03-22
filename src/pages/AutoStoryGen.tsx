@@ -50,7 +50,12 @@ export function AutoStoryGen() {
     assembleVideo,
     reset,
     openKeySelection,
-    openDirectoryPicker
+    openDirectoryPicker,
+    characterStyle,
+    setCharacterStyle,
+    repromptScene,
+    generateAltVariant,
+    switchVariant,
   } = useAutoStory();
 
   const [videoFile, setVideoFile] = useState<File | null>(null);
@@ -60,6 +65,8 @@ export function AutoStoryGen() {
   const [logs, setLogs] = useState<{time: string, message: string, type: 'info' | 'success' | 'error'}[]>([]);
   const logsContainerRef = useRef<HTMLDivElement>(null);
   const [showFinalModal, setShowFinalModal] = useState(false);
+  const [repromptOpen, setRepromptOpen] = useState<{ [key: number]: boolean }>({});
+  const [repromptText, setRepromptText] = useState<{ [key: number]: string }>({});
 
   const addLog = (message: string, type: 'info' | 'success' | 'error' = 'info') => {
     setLogs(prev => [...prev, { time: new Date().toLocaleTimeString(), message, type }]);
@@ -375,6 +382,19 @@ export function AutoStoryGen() {
                 )}
               </div>
 
+              {/* Character Style Lock */}
+              <div className="pt-2">
+                <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] mb-2 ml-1 flex items-center gap-2">
+                  <Users className="w-3 h-3 text-cyan-500/70" /> Character Style Lock (Optional)
+                </label>
+                <textarea
+                  value={characterStyle}
+                  onChange={(e) => setCharacterStyle(e.target.value)}
+                  placeholder="Describe consistent character appearance across all scenes, e.g.: Professor Pixel is a cartoon owl with large round glasses, brown vest, holding a blue book. Always maintain this exact look."
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-cyan-500 font-sans h-20 resize-none text-xs focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 outline-none transition-all"
+                />
+              </div>
+
               <button
                 onClick={handleGenerateClick}
                 disabled={(inputType === 'text' && !idea) || (inputType === 'video' && !videoFile) || isGeneratingScript || isGeneratingVideos}
@@ -572,50 +592,129 @@ export function AutoStoryGen() {
                         </div>
 
                         {/* Right: Video */}
-                        <div className="w-full md:w-80 shrink-0 border-l border-zinc-800">
-                          <div className="aspect-video bg-black relative flex items-center justify-center">
-                            {scene.url ? (
-                              <video
-                                src={scene.url}
-                                className="w-full h-full object-contain"
-                                controls
-                              />
-                            ) : scene.loading ? (
-                              <div className="flex flex-col items-center gap-3">
-                                <Loader2 className="w-8 h-8 text-cyan-500 animate-spin" />
-                                <span className="text-[9px] font-black text-cyan-500/50 uppercase tracking-[0.2em]">Synthesizing...</span>
-                              </div>
-                            ) : scene.error ? (
-                              <div className="p-3 text-center w-full overflow-hidden">
-                                <AlertCircle className="w-5 h-5 text-red-500 mx-auto mb-1" />
-                                <p className="text-[9px] text-red-400 line-clamp-2 mb-2 font-bold px-1 break-words overflow-hidden">
-                                  {parseErrorMessage(scene.error)}
-                                </p>
-                                <div className="flex items-center justify-center gap-2 w-full flex-wrap">
-                                  <button
-                                    onClick={() => retryVariant(sceneIndex)}
-                                    className="flex items-center justify-center gap-2 px-4 py-2 bg-red-500/30 hover:bg-red-500/50 active:bg-red-500/70 text-red-300 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer select-none"
-                                  >
-                                    <RefreshCw className="w-3.5 h-3.5" /> Retry
-                                  </button>
-                                  {scene.error.toLowerCase().includes('quota') && (
-                                    <button 
-                                      onClick={openKeySelection}
-                                      className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 rounded-lg text-[9px] font-black uppercase transition-all"
-                                      title="Change API Key"
-                                    >
-                                      <Key className="w-3 h-3" /> KEY
-                                    </button>
-                                  )}
+                        <div className="w-full md:w-80 shrink-0 border-l border-zinc-800 flex flex-col">
+                          {/* Variant toggle (show if alt variant exists or is loading) */}
+                          {(scene.url2 || scene.loading2) && (
+                            <div className="flex border-b border-zinc-800 text-[9px] font-black">
+                              <button
+                                onClick={() => switchVariant(sceneIndex, 1)}
+                                className={`flex-1 py-1.5 uppercase tracking-wider transition-colors ${(scene.activeVariant ?? 1) === 1 ? 'bg-cyan-500/20 text-cyan-400' : 'text-zinc-600 hover:text-zinc-400'}`}
+                              >
+                                Variant 1
+                              </button>
+                              <button
+                                onClick={() => switchVariant(sceneIndex, 2)}
+                                className={`flex-1 py-1.5 uppercase tracking-wider transition-colors ${scene.activeVariant === 2 ? 'bg-cyan-500/20 text-cyan-400' : 'text-zinc-600 hover:text-zinc-400'}`}
+                              >
+                                {scene.loading2 ? 'Generating...' : 'Variant 2'}
+                              </button>
+                            </div>
+                          )}
+                          <div className="aspect-video bg-black relative flex items-center justify-center flex-1">
+                            {/* Show active variant or fallback */}
+                            {(() => {
+                              const activeUrl = scene.activeVariant === 2 && scene.url2 ? scene.url2 : scene.url;
+                              if (activeUrl) return (
+                                <video src={activeUrl} className="w-full h-full object-contain" controls />
+                              );
+                              if (scene.loading2 && scene.activeVariant === 2) return (
+                                <div className="flex flex-col items-center gap-3">
+                                  <Loader2 className="w-8 h-8 text-cyan-500 animate-spin" />
+                                  <span className="text-[9px] font-black text-cyan-500/50 uppercase tracking-[0.2em]">Alt variant...</span>
                                 </div>
-                              </div>
-                            ) : (
-                              <div className="text-zinc-800 flex flex-col items-center gap-2">
-                                <Video className="w-8 h-8 opacity-20" />
-                                <span className="text-[9px] font-black uppercase tracking-widest opacity-20">Queued</span>
-                              </div>
-                            )}
+                              );
+                              if (scene.loading) return (
+                                <div className="flex flex-col items-center gap-3">
+                                  <Loader2 className="w-8 h-8 text-cyan-500 animate-spin" />
+                                  <span className="text-[9px] font-black text-cyan-500/50 uppercase tracking-[0.2em]">Synthesizing...</span>
+                                </div>
+                              );
+                              if (scene.error) return (
+                                <div className="p-3 text-center w-full overflow-hidden">
+                                  <AlertCircle className="w-5 h-5 text-red-500 mx-auto mb-1" />
+                                  <p className="text-[9px] text-red-400 line-clamp-2 mb-2 font-bold px-1 break-words overflow-hidden">
+                                    {parseErrorMessage(scene.error)}
+                                  </p>
+                                  <div className="flex items-center justify-center gap-2 w-full flex-wrap">
+                                    <button
+                                      onClick={() => retryVariant(sceneIndex)}
+                                      className="flex items-center justify-center gap-2 px-4 py-2 bg-red-500/30 hover:bg-red-500/50 active:bg-red-500/70 text-red-300 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer select-none"
+                                    >
+                                      <RefreshCw className="w-3.5 h-3.5" /> Retry
+                                    </button>
+                                    {scene.error.toLowerCase().includes('quota') && (
+                                      <button
+                                        onClick={openKeySelection}
+                                        className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 rounded-lg text-[9px] font-black uppercase transition-all"
+                                        title="Change API Key"
+                                      >
+                                        <Key className="w-3 h-3" /> KEY
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                              return (
+                                <div className="text-zinc-800 flex flex-col items-center gap-2">
+                                  <Video className="w-8 h-8 opacity-20" />
+                                  <span className="text-[9px] font-black uppercase tracking-widest opacity-20">Queued</span>
+                                </div>
+                              );
+                            })()}
                           </div>
+                          {/* Action bar: Reprompt + Generate Alt */}
+                          {(scene.url || scene.error) && (
+                            <div className="border-t border-zinc-800 p-2 flex gap-2">
+                              <button
+                                onClick={() => setRepromptOpen(prev => ({ ...prev, [sceneIndex]: !prev[sceneIndex] }))}
+                                className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all"
+                                title="Re-prompt this scene"
+                              >
+                                <Wand2 className="w-3 h-3" /> Re-prompt
+                              </button>
+                              <button
+                                onClick={() => generateAltVariant(sceneIndex)}
+                                disabled={scene.loading2 || scene.loading}
+                                className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-40 text-cyan-400 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all"
+                                title="Generate alternative variant"
+                              >
+                                {scene.loading2 ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+                                Alt
+                              </button>
+                            </div>
+                          )}
+                          {/* Reprompt input panel */}
+                          {repromptOpen[sceneIndex] && (
+                            <div className="border-t border-zinc-800 p-3 bg-zinc-950 space-y-2">
+                              <textarea
+                                value={repromptText[sceneIndex] || ''}
+                                onChange={(e) => setRepromptText(prev => ({ ...prev, [sceneIndex]: e.target.value }))}
+                                placeholder="Enter a custom prompt for this scene..."
+                                className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2 text-cyan-400 text-[10px] font-mono resize-none h-16 focus:border-cyan-500/50 outline-none"
+                              />
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => {
+                                    const prompt = repromptText[sceneIndex]?.trim();
+                                    if (prompt) {
+                                      repromptScene(sceneIndex, prompt);
+                                      setRepromptOpen(prev => ({ ...prev, [sceneIndex]: false }));
+                                    }
+                                  }}
+                                  disabled={!repromptText[sceneIndex]?.trim()}
+                                  className="flex-1 bg-cyan-500 hover:bg-cyan-400 disabled:opacity-40 text-black px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all"
+                                >
+                                  Generate
+                                </button>
+                                <button
+                                  onClick={() => setRepromptOpen(prev => ({ ...prev, [sceneIndex]: false }))}
+                                  className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 rounded-lg text-[9px] font-black uppercase"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     ))}
