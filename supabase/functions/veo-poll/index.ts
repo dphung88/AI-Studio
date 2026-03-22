@@ -150,30 +150,38 @@ serve(async (req) => {
       throw new Error(`Content filtered: ${hint}`)
     }
 
-    // Extract video GCS URI
-    const gcsUri = extractGcsUri(videoResponse)
-    if (!gcsUri) {
-      throw new Error(`No video URI found. Response: ${JSON.stringify(videoResponse).substring(0, 500)}`)
+    // Check if video is returned as base64 (fetchPredictOperation format)
+    const videos = (videoResponse as any).videos || []
+    const base64Video = videos[0]?.bytesBase64Encoded
+
+    let videoBuffer: ArrayBuffer
+
+    if (base64Video) {
+      // Vertex AI returned video as base64 directly — decode it
+      const binaryStr = atob(base64Video)
+      const bytes = new Uint8Array(binaryStr.length)
+      for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i)
+      videoBuffer = bytes.buffer
+    } else {
+      // Fallback: try GCS URI download
+      const gcsUri = extractGcsUri(videoResponse)
+      if (!gcsUri) {
+        throw new Error(`No video data found. Response: ${JSON.stringify(videoResponse).substring(0, 500)}`)
+      }
+      const withoutScheme = gcsUri.replace('gs://', '')
+      const firstSlash = withoutScheme.indexOf('/')
+      const bucket = withoutScheme.substring(0, firstSlash)
+      const objectPath = withoutScheme.substring(firstSlash + 1)
+      const downloadRes = await fetch(
+        `https://storage.googleapis.com/download/storage/v1/b/${encodeURIComponent(bucket)}/o/${encodeURIComponent(objectPath)}?alt=media`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      )
+      if (!downloadRes.ok) {
+        const errText = await downloadRes.text()
+        throw new Error(`GCS download failed (${downloadRes.status}): ${errText}`)
+      }
+      videoBuffer = await downloadRes.arrayBuffer()
     }
-
-    // Download from GCS using service account token
-    // gs://bucket-name/path/to/file.mp4  →  bucket-name / path/to/file.mp4
-    const withoutScheme = gcsUri.replace('gs://', '')
-    const firstSlash = withoutScheme.indexOf('/')
-    const bucket = withoutScheme.substring(0, firstSlash)
-    const objectPath = withoutScheme.substring(firstSlash + 1)
-
-    const downloadRes = await fetch(
-      `https://storage.googleapis.com/download/storage/v1/b/${encodeURIComponent(bucket)}/o/${encodeURIComponent(objectPath)}?alt=media`,
-      { headers: { Authorization: `Bearer ${token}` } },
-    )
-
-    if (!downloadRes.ok) {
-      const errText = await downloadRes.text()
-      throw new Error(`GCS download failed (${downloadRes.status}): ${errText}`)
-    }
-
-    const videoBuffer = await downloadRes.arrayBuffer()
 
     // Upload to Supabase Storage
     const supabase = createClient(
