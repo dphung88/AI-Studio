@@ -79,30 +79,40 @@ serve(async (req) => {
     const saJson = Deno.env.get('GOOGLE_SA_JSON')
     if (!saJson) throw new Error('GOOGLE_SA_JSON secret is not configured.')
 
-    let jsonStr = saJson.trim()
-    if ((jsonStr.startsWith("'") && jsonStr.endsWith("'")) ||
-        (jsonStr.startsWith('"') && jsonStr.endsWith('"'))) {
-      jsonStr = jsonStr.slice(1, -1)
-    }
-    let sa: Record<string, string>
-    try {
-      sa = JSON.parse(jsonStr)
-    } catch (e) {
-      throw new Error(`GOOGLE_SA_JSON invalid JSON. First 80 chars: [${saJson.substring(0, 80)}]. Err: ${e}`)
-    }
-    const { operationName } = await req.json()
+    const sa: Record<string, string> = (() => {
+      let str = saJson.trim()
+      if ((str.startsWith("'") && str.endsWith("'")) ||
+          (str.startsWith('"') && str.endsWith('"'))) {
+        str = str.slice(1, -1)
+      }
+      try {
+        return JSON.parse(str)
+      } catch (e) {
+        throw new Error(`GOOGLE_SA_JSON invalid JSON. First 80 chars: [${str.substring(0, 80)}]. Err: ${e}`)
+      }
+    })()
+    const { operationName, model = 'veo-2.0-generate-001' } = await req.json()
     if (!operationName) throw new Error('operationName is required')
 
     const location = 'us-central1'
+    const projectId = sa.project_id
     const token = await getAccessToken(sa)
 
-    // Check operation status
-    const pollRes = await fetch(
-      `https://${location}-aiplatform.googleapis.com/v1/${operationName}`,
-      { headers: { Authorization: `Bearer ${token}` } },
-    )
+    // Veo uses fetchPredictOperation (not standard LRO endpoint)
+    const fetchOpUrl = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/${model}:fetchPredictOperation`
+    const pollRes = await fetch(fetchOpUrl, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ operationName }),
+    })
 
-    const pollData = await pollRes.json()
+    const rawText = await pollRes.text()
+    let pollData: any
+    try {
+      pollData = JSON.parse(rawText)
+    } catch {
+      throw new Error(`Poll returned non-JSON (${pollRes.status}): ${rawText.substring(0, 300)}`)
+    }
 
     if (!pollRes.ok) {
       throw new Error(`Poll error (${pollRes.status}): ${JSON.stringify(pollData)}`)

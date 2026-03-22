@@ -30,6 +30,7 @@ const vertexStart = async (
 const vertexPoll = async (
   operationName: string,
   onProgress?: (msg: string) => void,
+  model = 'veo-2.0-generate-001',
 ): Promise<string> => {
   const edgeUrl = getSupabaseEdgeUrl();
   const startTime = Date.now();
@@ -46,7 +47,7 @@ const vertexPoll = async (
     const res = await fetch(`${edgeUrl}/veo-poll`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ operationName }),
+      body: JSON.stringify({ operationName, model }),
     });
 
     const data = await res.json();
@@ -73,7 +74,7 @@ export const generateVideo = async (
   if (getUseVertexAI()) {
     // Return a special object that pollVideoOperation will recognise
     const operationName = await vertexStart(prompt, image, aspectRatio, model);
-    return { _vertexOperation: operationName };
+    return { _vertexOperation: operationName, _vertexModel: model };
   }
 
   // ── Gemini Developer API ──
@@ -102,7 +103,7 @@ export const pollVideoOperation = async (
 ): Promise<string> => {
   // ── Vertex AI mode: result is { _vertexOperation: operationName } ──
   if (result?._vertexOperation) {
-    return await vertexPoll(result._vertexOperation, onProgress);
+    return await vertexPoll(result._vertexOperation, onProgress, result._vertexModel);
   }
 
   // If Vertex AI is enabled but operationName is missing, don't fall through to AI Studio
