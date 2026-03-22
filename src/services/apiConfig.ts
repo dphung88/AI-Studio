@@ -27,11 +27,8 @@ export const getApiKey = () => {
     }
   }
 
-  if (!key) {
-    // Vite exposes env vars via import.meta.env (not process.env)
-    const env = import.meta.env as Record<string, string | undefined>;
-    key = env.VITE_API_KEY || env.VITE_GEMINI_API_KEY || '';
-  }
+  // No env-var fallback — users must provide their own key via Settings.
+  // Falling back to a shared/owner key would charge their billing.
 
   return key.trim();
 };
