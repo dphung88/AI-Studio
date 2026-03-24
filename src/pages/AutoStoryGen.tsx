@@ -85,7 +85,8 @@ export function AutoStoryGen() {
   }, [isGeneratingVideos, generationProgress.current, generationProgress.total]);
 
   useEffect(() => {
-    if (isAssembling) addLog(`Merging videos... ${assemblyProgress}%`, "info");
+    if (isAssembling && assemblyProgress === 0) addLog("Generating voice narrations...", "info");
+    if (isAssembling && assemblyProgress > 0) addLog(`Merging videos... ${assemblyProgress}%`, "info");
     if (assemblyError) addLog(`Assembly error: ${assemblyError}`, "error");
     if (finalVideo) {
       addLog("Final video assembled successfully.", "success");

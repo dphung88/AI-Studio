@@ -435,10 +435,10 @@ export const AutoStoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         data = await generateScriptFromVideo(frames, style, sceneCount, language);
       }
       
-      const initialScenes: SceneState[] = data.scenes.map(() => ({ 
-        loading: false, 
+      const initialScenes: SceneState[] = data.scenes.map(() => ({
+        loading: false,
         status: 'queued',
-        audioLoading: language !== 'none'
+        audioLoading: false   // TTS is generated at assembly time, not during video generation
       }));
       
       updateState({
@@ -450,66 +450,8 @@ export const AutoStoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         generationProgress: { current: 0, total: data.scenes.length }
       });
       
-      // Start sequential video generation
+      // Start sequential video generation (TTS is deferred to assembly step)
       setTimeout(processQueue, 0);
-
-      // Generate Audio sequentially and upload to Supabase for persistence
-      for (let sceneIndex = 0; sceneIndex < data.scenes.length; sceneIndex++) {
-        const scene = data.scenes[sceneIndex];
-        if (language !== 'none' && scene.narration) {
-          let ttsSuccess = false;
-          let ttsAttempts = 0;
-          while (!ttsSuccess && ttsAttempts < 3) {
-            try {
-              const blobUrl = await generateSpeech(scene.narration, language);
-              // Upload to Supabase so URL stays valid after long video generation
-              let audioUrl = blobUrl;
-              try {
-                const audioRes = await fetch(blobUrl);
-                const audioBlob = await audioRes.blob();
-                const audioFilename = `audio/autostory-scene-${sceneIndex}-${Date.now()}.wav`;
-                const { error: uploadErr } = await supabase.storage
-                  .from('studio-media')
-                  .upload(audioFilename, audioBlob, { contentType: 'audio/wav', upsert: true });
-                if (!uploadErr) {
-                  const { data: { publicUrl } } = supabase.storage.from('studio-media').getPublicUrl(audioFilename);
-                  audioUrl = publicUrl;
-                }
-              } catch (_) { /* keep blob URL as fallback */ }
-              setState(prev => {
-                const newScenes = [...prev.scenesState];
-                newScenes[sceneIndex] = { ...newScenes[sceneIndex], audioLoading: false, audioUrl };
-                return { ...prev, scenesState: newScenes };
-              });
-              ttsSuccess = true;
-            } catch (err: any) {
-              ttsAttempts++;
-              let errorMsg = err?.message || (typeof err === 'string' ? err : 'Unknown error');
-              try {
-                if (typeof errorMsg === 'string' && errorMsg.includes('{')) {
-                  const json = JSON.parse(errorMsg.substring(errorMsg.indexOf('{')));
-                  if (json.error?.message) errorMsg = json.error.message;
-                }
-              } catch (e) {}
-
-              const isQuota = errorMsg.toLowerCase().includes('quota') || errorMsg.includes('429') || err?.status === 429 || err?.code === 429;
-              if (isQuota && ttsAttempts < 3) {
-                // Wait 65s then retry (TTS free tier: 15 RPM, resets every minute)
-                await new Promise(resolve => setTimeout(resolve, 65000));
-              } else {
-                setState(prev => {
-                  const newScenes = [...prev.scenesState];
-                  newScenes[sceneIndex] = { ...newScenes[sceneIndex], audioLoading: false, audioError: `TTS Scene ${sceneIndex + 1} failed: ${errorMsg}` };
-                  return { ...prev, scenesState: newScenes };
-                });
-                break;
-              }
-            }
-          }
-          // 5s delay between scenes to stay within TTS rate limits
-          await new Promise(resolve => setTimeout(resolve, 5000));
-        }
-      }
       
     } catch (error: any) {
       console.error("Workflow failed:", error);
@@ -590,9 +532,73 @@ export const AutoStoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   };
 
+  // Helper: generate TTS for one narration text with retry on quota
+  const generateTTSWithRetry = async (text: string, lang: 'en' | 'vi', sceneIndex: number): Promise<string | undefined> => {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const blobUrl = await generateSpeech(text, lang);
+        // Upload to Supabase so URL is permanent and CORS-safe
+        try {
+          const audioRes = await fetch(blobUrl);
+          const audioBlob = await audioRes.blob();
+          const audioFilename = `audio/autostory-scene-${sceneIndex}-${Date.now()}.wav`;
+          const { error: uploadErr } = await supabase.storage
+            .from('studio-media')
+            .upload(audioFilename, audioBlob, { contentType: 'audio/wav', upsert: true });
+          if (!uploadErr) {
+            const { data: { publicUrl } } = supabase.storage.from('studio-media').getPublicUrl(audioFilename);
+            return publicUrl;
+          }
+        } catch (_) {}
+        return blobUrl; // fallback: use blob URL
+      } catch (err: any) {
+        const msg = (err?.message || '').toLowerCase();
+        const isQuota = msg.includes('quota') || msg.includes('429') || err?.status === 429;
+        if (isQuota && attempt < 2) {
+          // Wait 65s for rate limit window to reset before retrying
+          await new Promise(r => setTimeout(r, 65000));
+        } else {
+          console.error(`TTS scene ${sceneIndex + 1} failed:`, err?.message);
+          return undefined;
+        }
+      }
+    }
+    return undefined;
+  };
+
   const assembleVideo = async () => {
-    const { scenesState, scriptData, showSubtitles } = state;
-    const scenesToMerge = scenesState.map((s, i) => {
+    const { scenesState, scriptData, showSubtitles, language } = state;
+
+    updateState({ isAssembling: true, assemblyProgress: 0, assemblyError: null });
+
+    // Generate TTS for all scenes before assembly (deferred from workflow to avoid quota during video gen)
+    if (language !== 'none' && scriptData) {
+      const ttsLang = language as 'en' | 'vi';
+      for (let i = 0; i < scriptData.scenes.length; i++) {
+        const narration = scriptData.scenes[i]?.narration;
+        if (narration && !scenesState[i]?.audioUrl) {
+          setState(prev => {
+            const ns = [...prev.scenesState];
+            ns[i] = { ...ns[i], audioLoading: true };
+            return { ...prev, scenesState: ns };
+          });
+          const audioUrl = await generateTTSWithRetry(narration, ttsLang, i);
+          setState(prev => {
+            const ns = [...prev.scenesState];
+            ns[i] = { ...ns[i], audioLoading: false, audioUrl };
+            return { ...prev, scenesState: ns };
+          });
+          // 8s between TTS calls — stays safely under 8 RPM (free tier limit is ~10 RPM)
+          if (i < scriptData.scenes.length - 1) {
+            await new Promise(r => setTimeout(r, 8000));
+          }
+        }
+      }
+    }
+
+    // Re-read state after TTS generation
+    const freshState = stateRef.current;
+    const scenesToMerge = freshState.scenesState.map((s, i) => {
       // Prefer permanent Supabase URL (CORS-safe, never expires) over raw Veo URL
       const rawUrl = s.activeVariant === 2 && s.url2 ? s.url2 : s.url;
       const savedUrl = s.activeVariant === 2 && s.savedUrl2 ? s.savedUrl2 : s.savedUrl;
@@ -602,10 +608,11 @@ export const AutoStoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         subtitle: scriptData?.scenes[i]?.narration
       };
     }).filter(s => s.videoUrl) as { videoUrl: string, audioUrl?: string; subtitle?: string }[];
-    
-    if (scenesToMerge.length === 0) return;
 
-    updateState({ isAssembling: true, assemblyProgress: 0, assemblyError: null });
+    if (scenesToMerge.length === 0) {
+      updateState({ isAssembling: false, assemblyError: 'No videos ready to assemble.' });
+      return;
+    }
     
     try {
       const finalUrl = await concatVideos(scenesToMerge, (progress) => {
