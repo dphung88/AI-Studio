@@ -148,12 +148,15 @@ export const AutoStoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         }
 
         setState(prev => {
-          const newState = { 
-            ...prev, 
-            ...parsed, 
+          const newState = {
+            ...prev,
+            ...parsed,
             isGeneratingScript: false,
-            isGeneratingVideos: hasPendingVideos, 
-            isAssembling: false 
+            isGeneratingVideos: hasPendingVideos,
+            isAssembling: false,
+            // Never restore characterStyle from old session — user must re-enter it each time
+            // to avoid stale character descriptions polluting new workflows
+            characterStyle: hasPendingVideos ? (parsed.characterStyle || '') : '',
           };
           stateRef.current = newState;
           return newState;

@@ -401,14 +401,31 @@ export function AutoStoryGen() {
 
               {/* Character Style Lock */}
               <div className="pt-2">
-                <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] mb-2 ml-1 flex items-center gap-2">
-                  <Users className="w-3 h-3 text-cyan-500/70" /> Character Style Lock (Optional)
-                </label>
+                <div className="flex items-center justify-between mb-2 ml-1">
+                  <label className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                    <Users className="w-3 h-3 text-cyan-500/70" /> Character Style Lock (Optional)
+                  </label>
+                  {characterStyle && (
+                    <button
+                      onClick={() => setCharacterStyle('')}
+                      className="flex items-center gap-1 text-[9px] font-bold text-red-400 hover:text-red-300 uppercase tracking-wider border border-red-500/30 hover:border-red-400/50 rounded px-2 py-0.5 transition-all"
+                      title="Clear character style"
+                    >
+                      <X className="w-2.5 h-2.5" /> Clear
+                    </button>
+                  )}
+                </div>
+                {characterStyle && (
+                  <div className="mb-2 px-2 py-1.5 bg-amber-500/10 border border-amber-500/30 rounded-lg flex items-start gap-2">
+                    <AlertCircle className="w-3 h-3 text-amber-400 mt-0.5 shrink-0" />
+                    <p className="text-[10px] text-amber-300">Character lock active — will be injected into ALL scene prompts. Clear if starting a new story.</p>
+                  </div>
+                )}
                 <textarea
                   value={characterStyle}
                   onChange={(e) => setCharacterStyle(e.target.value)}
                   placeholder="Describe consistent character appearance across all scenes, e.g.: Professor Pixel is a cartoon owl with large round glasses, brown vest, holding a blue book. Always maintain this exact look."
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-cyan-500 font-sans h-20 resize-none text-xs focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 outline-none transition-all"
+                  className={`w-full bg-zinc-950 border rounded-xl p-3 text-cyan-500 font-sans h-20 resize-none text-xs focus:ring-1 outline-none transition-all ${characterStyle ? 'border-amber-500/40 focus:border-amber-500/60 focus:ring-amber-500/30' : 'border-zinc-800 focus:border-cyan-500/50 focus:ring-cyan-500/50'}`}
                 />
               </div>
 
