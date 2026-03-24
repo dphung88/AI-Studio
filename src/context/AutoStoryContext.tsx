@@ -492,8 +492,9 @@ export const AutoStoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     setState(prev => {
       const newScenes = [...prev.scenesState];
-      newScenes[sceneIndex] = { ...newScenes[sceneIndex], loading: false, status: 'queued', error: undefined, url: undefined };
-      const newState = { ...prev, scenesState: newScenes, isGeneratingVideos: true };
+      // Clear audio too so re-assembly regenerates fresh TTS for this scene
+      newScenes[sceneIndex] = { ...newScenes[sceneIndex], loading: false, status: 'queued', error: undefined, url: undefined, audioUrl: undefined };
+      const newState = { ...prev, scenesState: newScenes, isGeneratingVideos: true, finalVideo: null };
       const totalTasks = prev.scriptData?.scenes.length || 0;
       const completedTasks = newState.scenesState.filter(s => s.status === 'done' || s.status === 'error').length;
       newState.generationProgress = { current: completedTasks, total: totalTasks };
@@ -727,8 +728,9 @@ export const AutoStoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         url: undefined,
         url2: undefined,
         activeVariant: 1,
+        audioUrl: undefined,   // clear audio so re-assembly generates fresh TTS
       };
-      const newState = { ...prev, scenesState: newScenes, isGeneratingVideos: true };
+      const newState = { ...prev, scenesState: newScenes, isGeneratingVideos: true, finalVideo: null };
       const totalTasks = prev.scriptData?.scenes.length || 0;
       const completedTasks = newState.scenesState.filter(s => s.status === 'done' || s.status === 'error').length;
       newState.generationProgress = { current: completedTasks, total: totalTasks };
@@ -757,9 +759,10 @@ export const AutoStoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setState(prev => {
       const newScenes = [...prev.scenesState];
       newScenes[sceneIndex] = targetSlot === 1
-        ? { ...newScenes[sceneIndex], loading: true, error: undefined }
+        ? { ...newScenes[sceneIndex], loading: true, error: undefined, audioUrl: undefined }
         : { ...newScenes[sceneIndex], loading2: true, error2: undefined };
-      return { ...prev, scenesState: newScenes };
+      // Clear finalVideo so user knows they need to re-assemble
+      return { ...prev, scenesState: newScenes, finalVideo: null };
     });
 
     try {

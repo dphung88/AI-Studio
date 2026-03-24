@@ -573,6 +573,13 @@ export function AutoStoryGen() {
                       )}
                     </div>
                   </div>
+                  {/* Hint: scenes were updated, re-assemble needed */}
+                  {!finalVideo && scenesState.some(s => s.url) && scenesState.every(s => s.status === 'done' || s.status === 'error') && (
+                    <div className="mb-4 px-4 py-2.5 bg-cyan-500/10 border border-cyan-500/30 rounded-xl flex items-center gap-2 text-[10px] text-cyan-400 font-bold">
+                      <RefreshCw className="w-3 h-3 shrink-0" />
+                      Scenes updated — click <span className="text-cyan-300 mx-1">ASSEMBLE MOVIE</span> to create a new version with the latest scenes.
+                    </div>
+                  )}
 
                   {finalVideo && (
                     <div className="bg-zinc-900 border-2 border-cyan-500/50 rounded-2xl overflow-hidden mb-8 shadow-2xl">
