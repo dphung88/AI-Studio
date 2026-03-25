@@ -692,7 +692,27 @@ export function AutoStoryGen() {
                               <p className="text-[11px] text-zinc-300 leading-relaxed">
                                 {scriptData.scenes[sceneIndex].action}
                               </p>
-                              
+
+                              {/* Inline prompt editor — always visible so user can fix prompt before/after gen */}
+                              <div className="space-y-1">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[9px] font-black text-zinc-600 uppercase tracking-widest">Prompt</span>
+                                </div>
+                                <textarea
+                                  key={`prompt-${sceneIndex}-${scriptData.scenes[sceneIndex].prompt.slice(0,20)}`}
+                                  defaultValue={scriptData.scenes[sceneIndex].prompt}
+                                  onBlur={(e) => {
+                                    const val = e.target.value.trim();
+                                    if (val && val !== scriptData.scenes[sceneIndex].prompt) {
+                                      updateScenePrompt(sceneIndex, val);
+                                    }
+                                  }}
+                                  rows={3}
+                                  className="w-full bg-zinc-950 border border-zinc-800 hover:border-zinc-600 focus:border-cyan-500/50 rounded-lg p-2 text-[10px] text-zinc-400 font-mono leading-relaxed resize-none outline-none transition-colors"
+                                  placeholder="Video generation prompt..."
+                                />
+                              </div>
+
                               {scriptData.scenes[sceneIndex].narration && (
                                 <div className="bg-zinc-950 p-3 rounded-xl border border-zinc-800/50">
                                   <p className="text-[9px] font-black text-cyan-500/50 uppercase tracking-widest mb-1">Narration</p>
