@@ -341,7 +341,7 @@ export function AutoStoryGen() {
                     onChange={(e) => setSceneCount(parseInt(e.target.value))} 
                     className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-cyan-500 font-sans focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 outline-none appearance-none transition-all"
                   >
-                    {[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20].map(n => <option key={n} value={n}>{n} Scene{n>1?'s':''}</option>)}
+                    {Array.from({length: 40}, (_, i) => i + 1).map(n => <option key={n} value={n}>{n} Scene{n>1?'s':''}</option>)}
                   </select>
                 </div>
                 <div>

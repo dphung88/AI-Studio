@@ -76,7 +76,7 @@ export function StyleRemaker() {
     video.onloadedmetadata = () => {
       const duration = video.duration;
       setVideoDuration(duration);
-      const recommendedCount = Math.min(20, Math.max(5, Math.ceil(duration / 6)));
+      const recommendedCount = Math.min(40, Math.max(5, Math.ceil(duration / 6)));
       setTargetSceneCount(recommendedCount);
       setStep(2);
       addLog(`Video duration: ${duration.toFixed(2)}s. Recommended scenes: ${recommendedCount}`, 'info');
@@ -361,7 +361,7 @@ export function StyleRemaker() {
                       <span className="bg-cyan-500 text-black text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest">{targetSceneCount} Scenes</span>
                     </div>
                     <input 
-                      type="range" min="5" max="20" value={targetSceneCount} 
+                      type="range" min="5" max="40" value={targetSceneCount}
                       onChange={(e) => setTargetSceneCount(parseInt(e.target.value))}
                       className="w-full h-2 bg-zinc-800 rounded-full appearance-none cursor-pointer accent-cyan-500"
                     />
