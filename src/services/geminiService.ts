@@ -384,6 +384,48 @@ export const improveScenePrompt = async (currentAction: string, currentMood: str
   }
 };
 
+// Regenerate all scene prompts to be consistent with updated character/setting descriptions
+export const regeneratePromptsFromCharacters = async (
+  scriptData: { characters: {name:string;description:string}[]; settings: {name:string;description:string}[]; scenes: {sceneNumber:number;action:string;prompt:string;narration?:string}[] },
+  style: string
+): Promise<{sceneNumber:number;prompt:string}[]> => {
+  const apiKey = getApiKey();
+  const model = getLlmModel();
+  if (!apiKey) throw new Error('API Key is missing. Please select or enter an API key in Settings.');
+
+  const ai = new GoogleGenAI({ apiKey });
+
+  const charList = scriptData.characters.map(c => `- ${c.name}: ${c.description}`).join('\n');
+  const settingList = scriptData.settings.map(s => `- ${s.name}: ${s.description}`).join('\n');
+  const sceneList = scriptData.scenes.map(s => `Scene ${s.sceneNumber}: ${s.action}`).join('\n');
+
+  const prompt = `You are an expert AI video director. The user has updated their character and setting descriptions. Rewrite ALL scene video prompts to be fully consistent with these updated descriptions.
+
+UPDATED CHARACTERS:
+${charList}
+
+UPDATED SETTINGS:
+${settingList}
+
+VISUAL STYLE: ${style}
+
+SCENES TO REWRITE (keep the same action, only rewrite the video prompt):
+${sceneList}
+
+Rules:
+- Every prompt must reference the character's EXACT visual appearance from the updated descriptions above
+- Maintain consistent character appearance across all scenes
+- Keep the same scene action/story beat
+- Each prompt should be highly detailed: camera angle, lighting, character clothing/features, action
+
+Respond ONLY with a valid JSON array:
+[{"sceneNumber": 1, "prompt": "detailed prompt..."}, ...]`;
+
+  const response = await ai.models.generateContent({ model, contents: prompt });
+  const rawText = response.text || (response.candidates?.[0]?.content?.parts?.[0]?.text) || '[]';
+  return JSON.parse(extractJson(rawText));
+};
+
 export const generateImage = async (prompt: string, aspectRatio: string = "1:1", imageSize: string = "1K", modelName: string = 'imagen-3.0-generate-001') => {
   const apiKey = getApiKey();
   if (!apiKey) throw new Error('API Key is missing. Please select or enter an API key in Settings.');

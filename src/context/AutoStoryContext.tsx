@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { generateAutoScript, generateScriptFromVideo, extractFrames, generateSpeech } from '../services/geminiService';
+import { generateAutoScript, generateScriptFromVideo, extractFrames, generateSpeech, regeneratePromptsFromCharacters } from '../services/geminiService';
 import { generateVideo, pollVideoOperation } from '../services/veoService';
 import { concatVideos } from '../services/videoAssemblyService';
 import { saveToStudioGallery, supabase } from '../services/supabase';
@@ -53,6 +53,7 @@ export interface AutoStoryState {
   hasApiKey: boolean;
   showSubtitles: boolean;
   characterStyle: string;
+  isRegeneratingPrompts: boolean;
 }
 
 const initialState: AutoStoryState = {
@@ -76,7 +77,8 @@ const initialState: AutoStoryState = {
   workflowError: null,
   hasApiKey: false,
   showSubtitles: true,
-  characterStyle: ''
+  characterStyle: '',
+  isRegeneratingPrompts: false,
 };
 
 let isSequentialLoopRunning = false;
@@ -109,6 +111,7 @@ interface AutoStoryContextType extends AutoStoryState {
   updateScenePrompt: (index: number, prompt: string, narration?: string) => void;
   updateCharacter: (index: number, name: string, description: string) => void;
   updateSetting: (index: number, name: string, description: string) => void;
+  regenerateAllPrompts: () => Promise<void>;
 }
 
 const AutoStoryContext = createContext<AutoStoryContextType | undefined>(undefined);
@@ -905,6 +908,28 @@ export const AutoStoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     });
   };
 
+  const regenerateAllPrompts = async () => {
+    const { scriptData, style } = stateRef.current;
+    if (!scriptData) return;
+    updateState({ isRegeneratingPrompts: true });
+    try {
+      const updated = await regeneratePromptsFromCharacters(scriptData, style);
+      setState(prev => {
+        if (!prev.scriptData) return prev;
+        const newScenes = prev.scriptData.scenes.map(scene => {
+          const match = updated.find(u => u.sceneNumber === scene.sceneNumber);
+          return match ? { ...scene, prompt: match.prompt } : scene;
+        });
+        const newState = { ...prev, scriptData: { ...prev.scriptData, scenes: newScenes }, isRegeneratingPrompts: false, activeTab: 'prompts' as const };
+        stateRef.current = newState;
+        return newState;
+      });
+    } catch (err: any) {
+      updateState({ isRegeneratingPrompts: false });
+      console.error('Failed to regenerate prompts:', err);
+    }
+  };
+
   return (
     <AutoStoryContext.Provider value={{
       ...state,
@@ -934,6 +959,7 @@ export const AutoStoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       updateScenePrompt,
       updateCharacter,
       updateSetting,
+      regenerateAllPrompts,
     }}>
       {children}
     </AutoStoryContext.Provider>

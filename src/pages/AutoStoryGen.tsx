@@ -61,6 +61,8 @@ export function AutoStoryGen() {
     updateScenePrompt,
     updateCharacter,
     updateSetting,
+    regenerateAllPrompts,
+    isRegeneratingPrompts,
   } = useAutoStory();
 
   const [videoFile, setVideoFile] = useState<File | null>(null);
@@ -501,9 +503,20 @@ export function AutoStoryGen() {
 
               {scriptData && activeTab === 'script' && (
                 <div className="space-y-8 animate-in fade-in duration-300">
-                  <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-bold text-white">Neural Storyboard</h3>
                     <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest">Click fields to edit</span>
+                  </div>
+                  <div className="mb-6 p-4 bg-zinc-900 border border-zinc-700 rounded-xl space-y-2">
+                    <p className="text-[10px] text-zinc-400">After editing characters or settings, click below to regenerate <strong className="text-cyan-400">all scene prompts</strong> so they reflect the updated character appearance consistently.</p>
+                    <button
+                      onClick={regenerateAllPrompts}
+                      disabled={isRegeneratingPrompts}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-cyan-500/20 hover:bg-cyan-500/30 disabled:opacity-50 border border-cyan-500/40 text-cyan-400 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all"
+                    >
+                      {isRegeneratingPrompts ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                      {isRegeneratingPrompts ? 'Regenerating all prompts...' : 'Sync Prompts to Characters'}
+                    </button>
                   </div>
                   <div className="space-y-8">
                     <div>
