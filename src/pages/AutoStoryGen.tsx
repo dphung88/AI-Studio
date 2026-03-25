@@ -55,7 +55,10 @@ export function AutoStoryGen() {
     setCharacterStyle,
     repromptScene,
     generateAltVariant,
+    generateNewAlt,
     switchVariant,
+    startVideoGeneration,
+    updateScenePrompt,
   } = useAutoStory();
 
   const [videoFile, setVideoFile] = useState<File | null>(null);
@@ -532,27 +535,62 @@ export function AutoStoryGen() {
 
               {scriptData && activeTab === 'prompts' && (
                 <div className="space-y-6 animate-in fade-in duration-300">
-                  <div className="mb-2">
+                  <div className="flex items-center justify-between mb-2">
                     <h3 className="text-lg font-bold text-white">Production Prompts</h3>
+                    {!isGeneratingVideos && scenesState.every(s => !s.url && !s.loading) && (
+                      <button
+                        onClick={startVideoGeneration}
+                        className="bg-cyan-500 hover:bg-cyan-400 text-black px-4 py-2 rounded-lg font-bold text-xs uppercase tracking-wider flex items-center gap-2 transition-colors shadow-lg shadow-cyan-500/20"
+                      >
+                        <Play className="w-3 h-3" />
+                        START GENERATION
+                      </button>
+                    )}
                   </div>
+                  {!isGeneratingVideos && scenesState.every(s => !s.url && !s.loading) && (
+                    <div className="px-4 py-2.5 bg-zinc-800/50 border border-zinc-700 rounded-xl text-[10px] text-zinc-400">
+                      Review and edit the prompts below, then click <span className="text-cyan-400 font-bold">START GENERATION</span> when ready.
+                    </div>
+                  )}
                   <div className="space-y-4">
                     {scriptData.scenes.map((scene, i) => (
                       <div key={i} className="bg-zinc-900 p-5 rounded-xl border border-zinc-800">
                         <div className="flex items-center gap-3 mb-3">
                           <span className="bg-cyan-500 text-black text-xs font-bold px-2 py-1 rounded">SCENE {scene.sceneNumber}</span>
-                          <span className="text-zinc-200 font-medium">{scene.action}</span>
+                          <span className="text-zinc-200 font-medium text-sm">{scene.action}</span>
                         </div>
-                        <div className="bg-zinc-950 p-3 rounded-lg border border-zinc-800/50">
-                          <p className="text-sm text-zinc-400 font-mono leading-relaxed mb-2"><span className="text-cyan-400 font-bold">Prompt:</span> {scene.prompt}</p>
-                          {scene.narration && (
-                            <p className="text-sm text-zinc-300 leading-relaxed border-t border-zinc-800 pt-2 mt-2">
-                              <span className="text-cyan-400 font-bold flex items-center gap-1"><Volume2 className="w-3 h-3" /> Voiceover:</span> {scene.narration}
-                            </p>
+                        <div className="space-y-2">
+                          <label className="text-[9px] font-black text-cyan-400/70 uppercase tracking-widest">Video Prompt</label>
+                          <textarea
+                            defaultValue={scene.prompt}
+                            onBlur={(e) => updateScenePrompt(i, e.target.value)}
+                            className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-3 text-[11px] text-zinc-300 font-mono leading-relaxed resize-none h-20 focus:border-cyan-500/50 outline-none"
+                            placeholder="Video generation prompt..."
+                          />
+                          {scene.narration !== undefined && (
+                            <>
+                              <label className="text-[9px] font-black text-cyan-400/70 uppercase tracking-widest flex items-center gap-1"><Volume2 className="w-3 h-3" /> Voiceover</label>
+                              <textarea
+                                defaultValue={scene.narration}
+                                onBlur={(e) => updateScenePrompt(i, scene.prompt, e.target.value)}
+                                className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-3 text-[11px] text-zinc-300 leading-relaxed resize-none h-12 focus:border-cyan-500/50 outline-none"
+                                placeholder="Voiceover narration text..."
+                              />
+                            </>
                           )}
                         </div>
                       </div>
                     ))}
                   </div>
+                  {!isGeneratingVideos && scenesState.every(s => !s.url && !s.loading) && (
+                    <button
+                      onClick={startVideoGeneration}
+                      className="w-full bg-cyan-500 hover:bg-cyan-400 text-black py-3 rounded-xl font-black text-sm uppercase tracking-wider flex items-center justify-center gap-2 transition-colors shadow-lg shadow-cyan-500/20"
+                    >
+                      <Play className="w-4 h-4" />
+                      CONFIRM & START VIDEO GENERATION
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -703,12 +741,12 @@ export function AutoStoryGen() {
                               );
                             })()}
                           </div>
-                          {/* Action bar: Reprompt + Generate Alt */}
+                          {/* Action bar: Re-prompt | Regen | + New */}
                           {(scene.url || scene.error) && (
-                            <div className="border-t border-zinc-800 p-2 flex gap-2">
+                            <div className="border-t border-zinc-800 p-2 flex gap-1.5">
                               <button
                                 onClick={() => setRepromptOpen(prev => ({ ...prev, [sceneIndex]: !prev[sceneIndex] }))}
-                                className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all"
+                                className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all"
                                 title="Re-prompt this scene"
                               >
                                 <Wand2 className="w-3 h-3" /> Re-prompt
@@ -716,11 +754,20 @@ export function AutoStoryGen() {
                               <button
                                 onClick={() => generateAltVariant(sceneIndex)}
                                 disabled={scene.loading2 || scene.loading}
-                                className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-40 text-cyan-400 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all"
-                                title="Generate alternative variant"
+                                className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-40 text-cyan-400 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all"
+                                title="Regenerate active variant"
+                              >
+                                {scene.loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                                Regen
+                              </button>
+                              <button
+                                onClick={() => generateNewAlt(sceneIndex)}
+                                disabled={scene.loading2 || scene.loading}
+                                className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-40 text-cyan-400 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all"
+                                title="Generate into the other variant slot"
                               >
                                 {scene.loading2 ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
-                                Alt
+                                {scene.loading2 ? 'Generating...' : '+ New'}
                               </button>
                             </div>
                           )}

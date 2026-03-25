@@ -103,7 +103,10 @@ interface AutoStoryContextType extends AutoStoryState {
   setCharacterStyle: (style: string) => void;
   repromptScene: (index: number, customPrompt: string) => void;
   generateAltVariant: (index: number) => Promise<void>;
+  generateNewAlt: (index: number) => Promise<void>;
   switchVariant: (index: number, variant: 1 | 2) => void;
+  startVideoGeneration: () => void;
+  updateScenePrompt: (index: number, prompt: string, narration?: string) => void;
 }
 
 const AutoStoryContext = createContext<AutoStoryContextType | undefined>(undefined);
@@ -453,13 +456,11 @@ export const AutoStoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         scriptData: data,
         scenesState: initialScenes,
         isGeneratingScript: false,
-        isGeneratingVideos: true,
-        activeTab: 'videos',
+        isGeneratingVideos: false,
+        activeTab: 'prompts',
         generationProgress: { current: 0, total: data.scenes.length }
       });
-      
-      // Start sequential video generation (TTS is deferred to assembly step)
-      setTimeout(processQueue, 0);
+      // DO NOT call processQueue here — wait for user to click START GENERATION
       
     } catch (error: any) {
       console.error("Workflow failed:", error);
@@ -752,9 +753,8 @@ export const AutoStoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const scene = scriptData.scenes[sceneIndex];
     const sceneState = stateRef.current.scenesState[sceneIndex];
 
-    // Determine which slot to write: replace the active variant, or fill variant 2 if both empty
-    // activeVariant 1 → replace slot 1 (url/savedUrl); activeVariant 2 → replace slot 2 (url2/savedUrl2)
-    const targetSlot: 1 | 2 = sceneState.activeVariant === 2 ? 2 : (sceneState.url ? 2 : 1);
+    // Replace whichever variant is currently active
+    const targetSlot: 1 | 2 = sceneState.activeVariant ?? 1;
 
     setState(prev => {
       const newScenes = [...prev.scenesState];
@@ -807,7 +807,81 @@ export const AutoStoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     });
   };
 
-    return (
+  // Generate into the OTHER slot (not the active one)
+  const generateNewAlt = async (sceneIndex: number) => {
+    if (!stateRef.current.hasApiKey && !customApiKey) {
+      openKeySelection();
+      return;
+    }
+    const { scriptData, aspectRatio, veoModel, characterStyle } = stateRef.current;
+    if (!scriptData) return;
+
+    const scene = scriptData.scenes[sceneIndex];
+    const sceneState = stateRef.current.scenesState[sceneIndex];
+
+    // Target the OTHER slot (not the active one)
+    const activeVariant = sceneState.activeVariant ?? 1;
+    const targetSlot: 1 | 2 = activeVariant === 2 ? 1 : 2;
+
+    setState(prev => {
+      const newScenes = [...prev.scenesState];
+      newScenes[sceneIndex] = targetSlot === 1
+        ? { ...newScenes[sceneIndex], loading: true, error: undefined, audioUrl: undefined, url: undefined, savedUrl: undefined }
+        : { ...newScenes[sceneIndex], loading2: true, error2: undefined, url2: undefined, savedUrl2: undefined };
+      return { ...prev, scenesState: newScenes, finalVideo: null };
+    });
+
+    try {
+      const characterPrefix = scriptData.characters && scriptData.characters.length > 0
+        ? scriptData.characters.map(c => `${c.name}: ${c.description}`).join('. ') + '. Maintain consistent character appearance throughout. '
+        : '';
+      const characterLock = characterStyle ? `Character style lock: ${characterStyle}. ` : '';
+      const fullPrompt = characterLock + characterPrefix + (sceneState.customPrompt || scene.prompt);
+
+      const newUrl = await generateSceneWithRetry(fullPrompt, aspectRatio, veoModel);
+
+      const savedNewUrl = await saveToStudioGallery({
+        type: 'video', url: newUrl,
+        prompt: fullPrompt,
+        settings: { source: `auto-story-variant${targetSlot}`, index: sceneIndex, model: veoModel }
+      });
+
+      setState(prev => {
+        const newScenes = [...prev.scenesState];
+        newScenes[sceneIndex] = targetSlot === 1
+          ? { ...newScenes[sceneIndex], loading: false, url: newUrl, savedUrl: savedNewUrl || newUrl, status: 'done', activeVariant: 1 }
+          : { ...newScenes[sceneIndex], loading2: false, url2: newUrl, savedUrl2: savedNewUrl || newUrl, activeVariant: 2 };
+        stateRef.current = { ...prev, scenesState: newScenes };
+        return stateRef.current;
+      });
+    } catch (error: any) {
+      setState(prev => {
+        const newScenes = [...prev.scenesState];
+        newScenes[sceneIndex] = targetSlot === 1
+          ? { ...newScenes[sceneIndex], loading: false, error: error?.message || 'Generation failed', status: 'error' }
+          : { ...newScenes[sceneIndex], loading2: false, error2: error?.message || 'Alt generation failed' };
+        return { ...prev, scenesState: newScenes };
+      });
+    }
+  };
+
+  const startVideoGeneration = () => {
+    updateState({ isGeneratingVideos: true, activeTab: 'videos' });
+    setTimeout(processQueue, 0);
+  };
+
+  const updateScenePrompt = (index: number, prompt: string, narration?: string) => {
+    setState(prev => {
+      if (!prev.scriptData) return prev;
+      const newScenes = [...prev.scriptData.scenes];
+      newScenes[index] = { ...newScenes[index], prompt, ...(narration !== undefined ? { narration } : {}) };
+      const newState = { ...prev, scriptData: { ...prev.scriptData, scenes: newScenes } };
+      stateRef.current = newState;
+      return newState;
+    });
+  };
+
+  return (
     <AutoStoryContext.Provider value={{
       ...state,
       setInputType: (type) => updateState({ inputType: type }),
@@ -830,7 +904,10 @@ export const AutoStoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setCharacterStyle: (style) => updateState({ characterStyle: style }),
       repromptScene,
       generateAltVariant,
+      generateNewAlt,
       switchVariant,
+      startVideoGeneration,
+      updateScenePrompt,
     }}>
       {children}
     </AutoStoryContext.Provider>
