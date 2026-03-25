@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../services/supabase';
+import { getSupabaseEdgeUrl } from '../services/apiConfig';
 import { useSettings } from '../context/SettingsContext';
 import { fetchAndDownload } from '../utils/downloadHelper';
 import { motion, AnimatePresence } from 'motion/react';
@@ -83,18 +84,20 @@ export function Gallery() {
     }
   };
 
-  // Delete one item from DB + Storage
+  // Delete one item — storage path via Edge Function, DB via client
   const handleDelete = async (item: GalleryItem) => {
     if (!window.confirm('Delete this item from archives?')) return;
     setDeletingId(item.id);
     try {
-      // 1. Remove from storage bucket if it has a storage URL
+      // 1. Delete storage file via Edge Function (has service role key)
       const storagePath = extractStoragePath(item.url);
       if (storagePath) {
-        const { error: storageErr } = await supabase.storage
-          .from(STORAGE_BUCKET)
-          .remove([storagePath]);
-        if (storageErr) console.warn('Storage delete warning:', storageErr.message);
+        const edgeUrl = getSupabaseEdgeUrl();
+        await fetch(`${edgeUrl}/storage-purge`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ paths: [storagePath] }),
+        }).catch(e => console.warn('Storage delete via edge failed:', e));
       }
       // 2. Remove from DB
       const { error } = await supabase.from('studio_gallery').delete().eq('id', item.id);
@@ -108,53 +111,23 @@ export function Gallery() {
     }
   };
 
-  // Delete ALL items + all storage files under videos/ audio/ images/ prefixes
+  // Delete ALL items via Edge Function (uses service role key — bypasses Storage RLS)
   const handleDeleteAll = async () => {
     setDeleteAllState('running');
+    setDeleteAllProgress('Connecting to server...');
     try {
-      // ── Step 1: collect all storage paths from gallery items ──
-      setDeleteAllProgress('Reading gallery records...');
-      const { data: allItems, error: fetchErr } = await supabase
-        .from('studio_gallery')
-        .select('id, url');
-      if (fetchErr) throw fetchErr;
+      const edgeUrl = getSupabaseEdgeUrl();
+      setDeleteAllProgress('Deleting all files from Storage + database...');
 
-      const storagePaths: string[] = [];
-      for (const item of allItems || []) {
-        const p = extractStoragePath(item.url);
-        if (p) storagePaths.push(p);
-      }
+      const res = await fetch(`${edgeUrl}/storage-purge`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const result = await res.json();
 
-      // ── Step 2: also list and delete entire audio/ folder (TTS files not in DB) ──
-      setDeleteAllProgress('Scanning audio folder...');
-      const { data: audioFiles } = await supabase.storage
-        .from(STORAGE_BUCKET)
-        .list('audio', { limit: 1000 });
-      if (audioFiles) {
-        audioFiles.forEach(f => storagePaths.push(`audio/${f.name}`));
-      }
-
-      // ── Step 3: delete storage files in batches of 100 ──
-      const BATCH = 100;
-      const uniquePaths = [...new Set(storagePaths)];
-      for (let i = 0; i < uniquePaths.length; i += BATCH) {
-        const batch = uniquePaths.slice(i, i + BATCH);
-        setDeleteAllProgress(`Deleting files ${i + 1}–${Math.min(i + BATCH, uniquePaths.length)} of ${uniquePaths.length}...`);
-        const { error: storageErr } = await supabase.storage
-          .from(STORAGE_BUCKET)
-          .remove(batch);
-        if (storageErr) console.warn('Storage batch delete warning:', storageErr.message);
-      }
-
-      // ── Step 4: delete all DB records by their actual IDs ──
-      setDeleteAllProgress('Clearing database records...');
-      if (allItems && allItems.length > 0) {
-        const ids = allItems.map((i: any) => i.id);
-        const { error: dbErr } = await supabase
-          .from('studio_gallery')
-          .delete()
-          .in('id', ids);
-        if (dbErr) throw dbErr;
+      if (!res.ok || !result.success) {
+        const errMsg = result.errors?.join(', ') || result.error || 'Unknown error';
+        throw new Error(errMsg);
       }
 
       setItems([]);
