@@ -27,6 +27,8 @@ export interface StoryBuilderState {
   logs: {time: string, message: string, type: 'info' | 'success' | 'error'}[];
   isSequentialLoopRunning: boolean;
   currentGenerationId: number;
+  // Global character reference image — passed to every scene without its own image upload
+  characterRefImage: { data: string; mimeType: string; url: string } | null;
 }
 
 const initialState: StoryBuilderState = {
@@ -40,6 +42,7 @@ const initialState: StoryBuilderState = {
   logs: [],
   isSequentialLoopRunning: false,
   currentGenerationId: 0,
+  characterRefImage: null,
 };
 
 // Background tasks map to survive unmounts
@@ -52,6 +55,7 @@ interface StoryBuilderContextType extends StoryBuilderState {
   removeScene: (id: string) => void;
   updateScenePrompt: (id: string, prompt: string) => void;
   handleImageUpload: (id: string, e: React.ChangeEvent<HTMLInputElement>) => void;
+  setCharacterRefImage: (img: { data: string; mimeType: string; url: string } | null) => void;
   generateSceneVideo: (sceneId: string) => void;
   assembleVideo: () => Promise<void>;
   reset: () => void;
@@ -108,11 +112,10 @@ export const StoryBuilderProvider: React.FC<{ children: React.ReactNode }> = ({ 
     setIsLoaded(true);
   }, []);
 
-  // Save to localStorage
+  // Save to localStorage (strip base64 image data — too large)
   useEffect(() => {
     if (isLoaded) {
-      // Don't save image data to avoid QuotaExceededError in localStorage if base64 is too large
-      const stateToSave = { ...state };
+      const { characterRefImage: _ref, ...stateToSave } = state;
       stateToSave.scenes = state.scenes.map(s => {
         const { image, ...rest } = s;
         return rest;
@@ -316,9 +319,13 @@ export const StoryBuilderProvider: React.FC<{ children: React.ReactNode }> = ({ 
         const taskKey = `story-${sceneToProcessId}`;
         activeTasks.set(taskKey, true);
 
-        // Use last frame for continuity only when the user hasn't uploaded their own image
+        // Image priority: scene's own upload > character ref image > none
+        // lastFrame is passed separately for scene continuity regardless of image
+        const imageToUse = scene.image ?? stateRef.current.characterRefImage ?? undefined;
         const lastFrameToUse = scene.image ? undefined : previousSceneLastFrame;
-        if (lastFrameToUse) {
+        if (stateRef.current.characterRefImage && !scene.image) {
+          addLog(`Applying character reference to scene...`, 'info');
+        } else if (lastFrameToUse) {
           addLog(`Using last frame of previous scene for continuity...`, 'info');
         }
 
@@ -330,7 +337,7 @@ export const StoryBuilderProvider: React.FC<{ children: React.ReactNode }> = ({ 
         try {
           const url = await generateWithRetry(
             scene.prompt,
-            scene.image,
+            imageToUse,
             lastFrameToUse,
             stateRef.current.aspectRatio,
             stateRef.current.veoModel
@@ -430,6 +437,10 @@ export const StoryBuilderProvider: React.FC<{ children: React.ReactNode }> = ({ 
     activeTasks.clear();
   }, []);
 
+  const setCharacterRefImage = useCallback((img: { data: string; mimeType: string; url: string } | null) => {
+    updateState({ characterRefImage: img });
+  }, []);
+
   return (
     <StoryBuilderContext.Provider value={{
       ...state,
@@ -439,6 +450,7 @@ export const StoryBuilderProvider: React.FC<{ children: React.ReactNode }> = ({ 
       removeScene,
       updateScenePrompt,
       handleImageUpload,
+      setCharacterRefImage,
       generateSceneVideo,
       assembleVideo,
       reset,

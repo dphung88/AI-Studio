@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Trash2, Image as ImageIcon, Video, Play, CheckCircle2, Loader2, Download, Film, AlertCircle, Terminal, FolderOpen, RefreshCw, X, Sparkles, Key } from 'lucide-react';
+import { Plus, Trash2, Image as ImageIcon, Video, Play, CheckCircle2, Loader2, Download, Film, AlertCircle, Terminal, FolderOpen, RefreshCw, X, Sparkles, Key, UserCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useSettings } from '../context/SettingsContext';
 import { useStoryBuilder } from '../context/StoryBuilderContext';
@@ -19,12 +19,14 @@ export function StoryBuilder() {
     veoModel,
     logs,
     isSequentialLoopRunning,
+    characterRefImage,
     setAspectRatio,
     setVeoModel,
     addScene,
     removeScene,
     updateScenePrompt,
     handleImageUpload,
+    setCharacterRefImage,
     generateSceneVideo,
     assembleVideo,
     reset,
@@ -161,6 +163,51 @@ export function StoryBuilder() {
           <p className="text-sm text-zinc-400 mb-4">{assemblyError}</p>
         </div>
       )}
+
+      {/* Character Lock */}
+      <div className="mb-8 p-5 bg-zinc-900/50 border border-zinc-800/60 rounded-2xl flex items-center gap-6">
+        <div className="shrink-0">
+          <p className="text-[9px] font-black text-zinc-500 uppercase tracking-[0.25em] mb-1 flex items-center gap-2">
+            <UserCircle2 className="w-3 h-3 text-cyan-500" /> Character Lock
+          </p>
+          <p className="text-[10px] text-zinc-600 max-w-[260px]">
+            Upload a character reference image — applied to all scenes for visual consistency.
+          </p>
+        </div>
+        <div className="relative w-20 h-20 shrink-0 rounded-xl overflow-hidden border-2 border-dashed border-zinc-700 hover:border-cyan-500/50 transition-all bg-zinc-950 cursor-pointer group">
+          <input
+            type="file"
+            accept="image/*"
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              const reader = new FileReader();
+              reader.onload = (ev) => {
+                const dataUrl = ev.target?.result as string;
+                setCharacterRefImage({ data: dataUrl.split(',')[1], mimeType: file.type, url: dataUrl });
+              };
+              reader.readAsDataURL(file);
+            }}
+          />
+          {characterRefImage ? (
+            <img src={characterRefImage.url} className="w-full h-full object-cover" alt="Character ref" />
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full gap-1 text-zinc-600 group-hover:text-zinc-400 transition-colors">
+              <UserCircle2 className="w-6 h-6" />
+              <span className="text-[8px] font-black uppercase tracking-widest">Upload</span>
+            </div>
+          )}
+        </div>
+        {characterRefImage && (
+          <button
+            onClick={() => setCharacterRefImage(null)}
+            className="text-[9px] font-black text-zinc-600 hover:text-red-400 uppercase tracking-widest transition-colors flex items-center gap-1"
+          >
+            <X className="w-3 h-3" /> Remove
+          </button>
+        )}
+      </div>
 
       <div className="space-y-8">
         {scenes.map((scene, index) => (
