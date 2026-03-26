@@ -3,11 +3,12 @@ import { Plus, Trash2, Image as ImageIcon, Video, Play, CheckCircle2, Loader2, D
 import { motion, AnimatePresence } from 'motion/react';
 import { useSettings } from '../context/SettingsContext';
 import { useStoryBuilder } from '../context/StoryBuilderContext';
+import { fetchAndDownload } from '../utils/downloadHelper';
 import { AspectRatio } from '../types';
 import { GenerationStatus } from '../components/GenerationStatus';
 
 export function StoryBuilder() {
-  const { projectName } = useSettings();
+  const { projectName, directoryHandle } = useSettings();
   const {
     scenes,
     isAssembling,
@@ -44,18 +45,14 @@ export function StoryBuilder() {
     }
   }, [finalVideo]);
 
-  const downloadAllClips = () => {
+  const downloadAllClips = async () => {
     addLog('Downloading all clips...', 'info');
-    scenes.forEach((scene, i) => {
+    for (let i = 0; i < scenes.length; i++) {
+      const scene = scenes[i];
       if (scene.url) {
-        const a = document.createElement('a');
-        a.href = scene.url;
-        a.download = `story_scene_${String(i + 1).padStart(2, '0')}.mp4`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+        await fetchAndDownload(scene.url, `story_scene_${String(i + 1).padStart(2, '0')}.mp4`, directoryHandle).catch(console.error);
       }
-    });
+    }
     addLog('Clips downloaded successfully.', 'success');
   };
 
@@ -258,13 +255,12 @@ export function StoryBuilder() {
                   <>
                     <video src={scene.url} className="w-full h-full object-cover" autoPlay loop muted playsInline controls />
                     <div className="absolute bottom-3 right-3 opacity-0 group-hover/scene:opacity-100 transition-opacity">
-                      <a 
-                        href={scene.url} 
-                        download={`scene_${index+1}.mp4`}
+                      <button
+                        onClick={() => fetchAndDownload(scene.url!, `scene_${index+1}.mp4`, directoryHandle).catch(console.error)}
                         className="p-2 bg-black/60 hover:bg-cyan-500 text-white hover:text-black rounded-lg backdrop-blur-md border border-white/10 transition-all block"
                       >
                         <Download className="w-4 h-4" />
-                      </a>
+                      </button>
                     </div>
                   </>
                 ) : (
@@ -399,13 +395,12 @@ export function StoryBuilder() {
                                 </span>
                               </div>
                               <div className="absolute bottom-4 right-4 opacity-0 group-hover/clip:opacity-100 transition-opacity">
-                                <a 
-                                  href={scene.url} 
-                                  download={`scene_${idx+1}.mp4`}
+                                <button
+                                  onClick={() => fetchAndDownload(scene.url!, `scene_${idx+1}.mp4`, directoryHandle).catch(console.error)}
                                   className="p-3 bg-cyan-500 text-black rounded-xl shadow-xl transition-all hover:scale-110 block"
                                 >
                                   <Download className="w-4 h-4" />
-                                </a>
+                                </button>
                               </div>
                             </div>
                             <p className="mt-4 text-[10px] font-black text-zinc-500 uppercase tracking-widest truncate px-2">

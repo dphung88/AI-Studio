@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { generateAutoScript, generateScriptFromVideo, extractFrames, generateSpeech, regeneratePromptsFromCharacters } from '../services/geminiService';
+import { generateAutoScript, generateScriptFromVideo, extractFrames, regeneratePromptsFromCharacters } from '../services/geminiService';
 import { generateVideo, pollVideoOperation } from '../services/veoService';
 import { concatVideos } from '../services/videoAssemblyService';
-import { saveToStudioGallery, supabase } from '../services/supabase';
+import { saveToStudioGallery } from '../services/supabase';
 import { AspectRatio } from '../types';
 import { useSettings } from './SettingsContext';
 
@@ -20,9 +20,6 @@ export interface SceneState {
   isUpscaling?: boolean;
   resolution?: '720p' | '1080p';
   status?: 'queued' | 'processing' | 'done' | 'error';
-  audioUrl?: string;
-  audioLoading?: boolean;
-  audioError?: string;
   customPrompt?: string;     // user's custom reprompt override
   url2?: string;             // alternative variant URL
   savedUrl2?: string;        // permanent Supabase URL for variant 2
@@ -51,7 +48,6 @@ export interface AutoStoryState {
   assemblyError: string | null;
   workflowError: string | null;
   hasApiKey: boolean;
-  showSubtitles: boolean;
   characterStyle: string;
   isRegeneratingPrompts: boolean;
 }
@@ -76,7 +72,6 @@ const initialState: AutoStoryState = {
   assemblyError: null,
   workflowError: null,
   hasApiKey: false,
-  showSubtitles: true,
   characterStyle: '',
   isRegeneratingPrompts: false,
 };
@@ -98,7 +93,6 @@ interface AutoStoryContextType extends AutoStoryState {
   upscaleVariant: (sceneIndex: number) => Promise<void>;
   assembleVideo: () => Promise<void>;
   reset: () => void;
-  setShowSubtitles: (show: boolean) => void;
   openKeySelection: () => Promise<void>;
   checkApiKey: () => Promise<boolean>;
   openDirectoryPicker: () => Promise<void>;
@@ -359,7 +353,11 @@ export const AutoStoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         const characterLock = currentState.characterStyle ? `Character style lock: ${currentState.characterStyle}. ` : '';
         // Use scene's customPrompt if set (from reprompt), otherwise use original
         const sceneCustomPrompt = currentState.scenesState[sceneIndexToProcess]?.customPrompt;
-        const fullPrompt = characterLock + characterPrefix + (sceneCustomPrompt || scene.prompt);
+        // Append narration so Veo generates voiceover audio embedded in the video
+        const narrationSuffix = !sceneCustomPrompt && scene.narration
+          ? ` Voiceover narration: "${scene.narration}"`
+          : '';
+        const fullPrompt = characterLock + characterPrefix + (sceneCustomPrompt || scene.prompt) + narrationSuffix;
 
         // Mark as processing
         setState(prev => {
@@ -466,8 +464,7 @@ export const AutoStoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       
       const initialScenes: SceneState[] = data.scenes.map(() => ({
         loading: false,
-        status: 'queued',
-        audioLoading: false   // TTS is generated at assembly time, not during video generation
+        status: 'queued'
       }));
       
       updateState({
@@ -511,8 +508,7 @@ export const AutoStoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     setState(prev => {
       const newScenes = [...prev.scenesState];
-      // Clear audio too so re-assembly regenerates fresh TTS for this scene
-      newScenes[sceneIndex] = { ...newScenes[sceneIndex], loading: false, status: 'queued', error: undefined, url: undefined, audioUrl: undefined };
+      newScenes[sceneIndex] = { ...newScenes[sceneIndex], loading: false, status: 'queued', error: undefined, url: undefined };
       const newState = { ...prev, scenesState: newScenes, isGeneratingVideos: true, finalVideo: null };
       const totalTasks = prev.scriptData?.scenes.length || 0;
       const completedTasks = newState.scenesState.filter(s => s.status === 'done' || s.status === 'error').length;
@@ -560,99 +556,26 @@ export const AutoStoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   };
 
-  // Parse "Please retry in Xs" from Gemini quota error message
-  const parseRetryDelay = (errMsg: string): number => {
-    const match = errMsg.match(/retry in ([\d.]+)s/i);
-    if (match) return Math.ceil(parseFloat(match[1])) * 1000 + 3000; // exact wait + 3s buffer
-    return 65000; // default 65s if not parseable
-  };
-
-  // Helper: generate TTS for one narration text with retry on quota
-  const generateTTSWithRetry = async (text: string, lang: 'en' | 'vi', sceneIndex: number): Promise<string | undefined> => {
-    for (let attempt = 0; attempt < 4; attempt++) {
-      try {
-        const blobUrl = await generateSpeech(text, lang);
-        // Upload to Supabase so URL is permanent and CORS-safe
-        try {
-          const audioRes = await fetch(blobUrl);
-          const audioBlob = await audioRes.blob();
-          const audioFilename = `audio/autostory-scene-${sceneIndex}-${Date.now()}.wav`;
-          const { error: uploadErr } = await supabase.storage
-            .from('studio-media')
-            .upload(audioFilename, audioBlob, { contentType: 'audio/wav', upsert: true });
-          if (!uploadErr) {
-            const { data: { publicUrl } } = supabase.storage.from('studio-media').getPublicUrl(audioFilename);
-            return publicUrl;
-          }
-        } catch (_) {}
-        return blobUrl; // fallback: use blob URL
-      } catch (err: any) {
-        const rawMsg = err?.message || '';
-        const isQuota = rawMsg.toLowerCase().includes('quota') || rawMsg.includes('429') || err?.status === 429;
-        if (isQuota && attempt < 3) {
-          const waitMs = parseRetryDelay(rawMsg);
-          await new Promise(r => setTimeout(r, waitMs));
-        } else {
-          console.error(`TTS scene ${sceneIndex + 1} failed:`, rawMsg);
-          return undefined;
-        }
-      }
-    }
-    return undefined;
-  };
-
   const assembleVideo = async () => {
-    const { scenesState, scriptData, showSubtitles, language } = state;
-
     updateState({ isAssembling: true, assemblyProgress: 0, assemblyError: null });
 
-    // Generate TTS for all scenes before assembly (deferred from workflow to avoid quota during video gen)
-    if (language !== 'none' && scriptData) {
-      const ttsLang = language as 'en' | 'vi';
-      for (let i = 0; i < scriptData.scenes.length; i++) {
-        const narration = scriptData.scenes[i]?.narration;
-        if (narration && !scenesState[i]?.audioUrl) {
-          setState(prev => {
-            const ns = [...prev.scenesState];
-            ns[i] = { ...ns[i], audioLoading: true };
-            return { ...prev, scenesState: ns };
-          });
-          const audioUrl = await generateTTSWithRetry(narration, ttsLang, i);
-          setState(prev => {
-            const ns = [...prev.scenesState];
-            ns[i] = { ...ns[i], audioLoading: false, audioUrl };
-            return { ...prev, scenesState: ns };
-          });
-          // 8s between TTS calls — stays safely under 8 RPM (free tier limit is ~10 RPM)
-          if (i < scriptData.scenes.length - 1) {
-            await new Promise(r => setTimeout(r, 8000));
-          }
-        }
-      }
-    }
-
-    // Re-read state after TTS generation
     const freshState = stateRef.current;
-    const scenesToMerge = freshState.scenesState.map((s, i) => {
+    const scenesToMerge = freshState.scenesState.map(s => {
       // Prefer permanent Supabase URL (CORS-safe, never expires) over raw Veo URL
       const rawUrl = s.activeVariant === 2 && s.url2 ? s.url2 : s.url;
       const savedUrl = s.activeVariant === 2 && s.savedUrl2 ? s.savedUrl2 : s.savedUrl;
-      return {
-        videoUrl: savedUrl || rawUrl,
-        audioUrl: s.audioUrl,
-        subtitle: scriptData?.scenes[i]?.narration
-      };
-    }).filter(s => s.videoUrl) as { videoUrl: string, audioUrl?: string; subtitle?: string }[];
+      return { videoUrl: savedUrl || rawUrl };
+    }).filter(s => s.videoUrl) as { videoUrl: string }[];
 
     if (scenesToMerge.length === 0) {
       updateState({ isAssembling: false, assemblyError: 'No videos ready to assemble.' });
       return;
     }
-    
+
     try {
       const finalUrl = await concatVideos(scenesToMerge, (progress) => {
         updateState({ assemblyProgress: Math.round(progress * 100) });
-      }, showSubtitles);
+      });
       updateState({ finalVideo: finalUrl, isAssembling: false, assemblyProgress: 100 });
 
       // Auto-save final assembled master video
@@ -747,7 +670,6 @@ export const AutoStoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         url: undefined,
         url2: undefined,
         activeVariant: 1,
-        audioUrl: undefined,   // clear audio so re-assembly generates fresh TTS
       };
       const newState = { ...prev, scenesState: newScenes, isGeneratingVideos: true, finalVideo: null };
       const totalTasks = prev.scriptData?.scenes.length || 0;
@@ -777,7 +699,7 @@ export const AutoStoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setState(prev => {
       const newScenes = [...prev.scenesState];
       newScenes[sceneIndex] = targetSlot === 1
-        ? { ...newScenes[sceneIndex], loading: true, error: undefined, audioUrl: undefined }
+        ? { ...newScenes[sceneIndex], loading: true, error: undefined }
         : { ...newScenes[sceneIndex], loading2: true, error2: undefined };
       // Clear finalVideo so user knows they need to re-assemble
       return { ...prev, scenesState: newScenes, finalVideo: null };
@@ -788,7 +710,10 @@ export const AutoStoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         ? scriptData.characters.map(c => `${c.name}: ${c.description}`).join('. ') + '. Maintain consistent character appearance throughout. '
         : '';
       const characterLock = characterStyle ? `Character style lock: ${characterStyle}. ` : '';
-      const fullPrompt = characterLock + characterPrefix + (sceneState.customPrompt || scene.prompt);
+      const narrationSuffix = !sceneState.customPrompt && scene.narration
+        ? ` Voiceover narration: "${scene.narration}"`
+        : '';
+      const fullPrompt = characterLock + characterPrefix + (sceneState.customPrompt || scene.prompt) + narrationSuffix;
 
       const newUrl = await generateSceneWithRetry(fullPrompt, aspectRatio, veoModel);
 
@@ -844,7 +769,7 @@ export const AutoStoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setState(prev => {
       const newScenes = [...prev.scenesState];
       newScenes[sceneIndex] = targetSlot === 1
-        ? { ...newScenes[sceneIndex], loading: true, error: undefined, audioUrl: undefined, url: undefined, savedUrl: undefined }
+        ? { ...newScenes[sceneIndex], loading: true, error: undefined, url: undefined, savedUrl: undefined }
         : { ...newScenes[sceneIndex], loading2: true, error2: undefined, url2: undefined, savedUrl2: undefined };
       return { ...prev, scenesState: newScenes, finalVideo: null };
     });
@@ -854,7 +779,10 @@ export const AutoStoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         ? scriptData.characters.map(c => `${c.name}: ${c.description}`).join('. ') + '. Maintain consistent character appearance throughout. '
         : '';
       const characterLock = characterStyle ? `Character style lock: ${characterStyle}. ` : '';
-      const fullPrompt = characterLock + characterPrefix + (sceneState.customPrompt || scene.prompt);
+      const narrationSuffix = !sceneState.customPrompt && scene.narration
+        ? ` Voiceover narration: "${scene.narration}"`
+        : '';
+      const fullPrompt = characterLock + characterPrefix + (sceneState.customPrompt || scene.prompt) + narrationSuffix;
 
       const newUrl = await generateSceneWithRetry(fullPrompt, aspectRatio, veoModel);
 
@@ -959,7 +887,6 @@ export const AutoStoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       upscaleVariant,
       assembleVideo,
       reset,
-      setShowSubtitles: (show) => updateState({ showSubtitles: show }),
       openKeySelection,
       checkApiKey,
       openDirectoryPicker,

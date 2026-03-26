@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { generateVideo, pollVideoOperation } from '../services/veoService';
 import { concatVideos } from '../services/videoAssemblyService';
-import { improveScenePrompt, generateSpeech } from '../services/geminiService';
-import { saveToStudioGallery, supabase } from '../services/supabase';
+import { improveScenePrompt } from '../services/geminiService';
+import { saveToStudioGallery } from '../services/supabase';
 import { storeVideoBlob, getVideoBlob, clearAllVideoBlobs } from '../services/videoStorage';
 import { useSettings } from './SettingsContext';
 
@@ -14,8 +14,6 @@ export interface RemadeScene {
   error?: string;
   startTime?: number;
   status?: 'queued' | 'processing' | 'done' | 'error';
-  audioUrl?: string;      // TTS narration URL
-  narration?: string;     // narration text for this scene
   customPrompt?: string;  // user-overridden prompt for this scene
   savedUrl?: string;      // persisted Supabase URL
 }
@@ -332,9 +330,12 @@ export const RemakerProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
         // Use custom prompt if set by user (re-prompt feature), otherwise build from scene data
         const customPrompt = remadeScenes[sceneIndexToProcess]?.customPrompt;
+        const narrationSuffix = !customPrompt && scene.narration
+          ? ` Voiceover narration: "${scene.narration}".`
+          : '';
         let prompt = customPrompt
           ? `${charPrefix}${customPrompt}`
-          : `${charPrefix}A cinematic video in ${styleToUse} style. Action: ${scene.action}. ${scene.characters ? `Characters: ${scene.characters}.` : ''} ${scene.setting ? `Setting: ${scene.setting}.` : ''} Atmosphere: ${scene.mood}. Duration: ${duration} seconds. High quality, detailed textures, consistent lighting.`;
+          : `${charPrefix}A cinematic video in ${styleToUse} style. Action: ${scene.action}. ${scene.characters ? `Characters: ${scene.characters}.` : ''} ${scene.setting ? `Setting: ${scene.setting}.` : ''} Atmosphere: ${scene.mood}. Duration: ${duration} seconds. High quality, detailed textures, consistent lighting.${narrationSuffix}`;
 
         addLog(`Processing Scene ${sceneIndexToProcess + 1}/${currentState.remadeScenes.length}: "${prompt.substring(0, 80)}..."`, 'info');
 
@@ -380,50 +381,6 @@ export const RemakerProvider: React.FC<{ children: React.ReactNode }> = ({ child
             savedUrl = saved?.publicUrl || undefined;
           } catch (_) {}
 
-          // Generate TTS narration and upload to Supabase (blob URLs don't survive state save/restore)
-          // Prefer 'narration' field (voiceover text) over 'action' (brief description)
-          const scene = scenes[sceneIndexToProcess];
-          const narrationText = scene?.narration || scene?.action || '';
-          let audioUrl: string | undefined;
-          if (narrationText) {
-            const parseRetryDelay = (msg: string) => {
-              const m = msg.match(/retry in ([\d.]+)s/i);
-              return m ? Math.ceil(parseFloat(m[1])) * 1000 + 3000 : 65000;
-            };
-            for (let ttsAttempt = 0; ttsAttempt < 4; ttsAttempt++) {
-              try {
-                const blobUrl = await generateSpeech(narrationText, 'en');
-                const audioRes = await fetch(blobUrl);
-                const audioBlob = await audioRes.blob();
-                const audioFilename = `audio/remaker-scene-${sceneIndexToProcess}-${Date.now()}.wav`;
-                const { error: audioUploadErr } = await supabase.storage
-                  .from('studio-media')
-                  .upload(audioFilename, audioBlob, { contentType: 'audio/wav', upsert: true });
-                if (!audioUploadErr) {
-                  const { data: { publicUrl: audioPublicUrl } } = supabase.storage
-                    .from('studio-media')
-                    .getPublicUrl(audioFilename);
-                  audioUrl = audioPublicUrl;
-                  addLog(`Scene ${sceneIndexToProcess + 1} narration ready.`, 'info');
-                } else {
-                  addLog(`Scene ${sceneIndexToProcess + 1} audio upload failed — no voice in assembly.`, 'error');
-                }
-                break; // success
-              } catch (ttsErr: any) {
-                const msg = ttsErr.message || '';
-                const isQuota = msg.toLowerCase().includes('quota') || msg.includes('429');
-                if (isQuota && ttsAttempt < 3) {
-                  const waitMs = parseRetryDelay(msg);
-                  addLog(`Scene ${sceneIndexToProcess + 1} TTS quota hit, retrying in ${Math.round(waitMs / 1000)}s...`, 'info');
-                  await new Promise(r => setTimeout(r, waitMs));
-                } else {
-                  addLog(`Scene ${sceneIndexToProcess + 1} TTS failed: ${msg}`, 'error');
-                  break;
-                }
-              }
-            }
-          }
-
           let isAllDone = false;
           setState(prev => {
             const newScenes = [...prev.remadeScenes];
@@ -432,8 +389,6 @@ export const RemakerProvider: React.FC<{ children: React.ReactNode }> = ({ child
               loading: false,
               url,
               savedUrl,
-              audioUrl,
-              narration: narrationText,  // store the text used for TTS
               status: 'done',
               startTime: undefined
             };
@@ -625,7 +580,7 @@ export const RemakerProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     const scenesToMerge = freshScenes
       .filter(s => s.url)
-      .map(s => ({ videoUrl: s.savedUrl || s.url, audioUrl: s.audioUrl }));
+      .map(s => ({ videoUrl: s.savedUrl || s.url }));
 
     if (scenesToMerge.length === 0) {
       addLog('Assembly failed: No successful scenes found to merge.', 'error');

@@ -42,8 +42,6 @@ export function AutoStoryGen() {
     assemblyError,
     workflowError,
     hasApiKey,
-    showSubtitles,
-    setShowSubtitles,
     generateWorkflow,
     retryVariant,
     upscaleVariant,
@@ -92,7 +90,7 @@ export function AutoStoryGen() {
   }, [isGeneratingVideos, generationProgress.current, generationProgress.total]);
 
   useEffect(() => {
-    if (isAssembling && assemblyProgress === 0) addLog("Generating voice narrations...", "info");
+    if (isAssembling && assemblyProgress === 0) addLog("Assembling videos...", "info");
     if (isAssembling && assemblyProgress > 0) addLog(`Merging videos... ${assemblyProgress}%`, "info");
     if (assemblyError) addLog(`Assembly error: ${assemblyError}`, "error");
     if (finalVideo) {
@@ -100,22 +98,6 @@ export function AutoStoryGen() {
       setShowFinalModal(true);
     }
   }, [isAssembling, assemblyProgress, assemblyError, finalVideo]);
-
-  // Log TTS results as they come in (track logged indices to avoid duplicates)
-  const loggedTtsRef = useRef<Set<string>>(new Set());
-  useEffect(() => {
-    scenesState.forEach((scene, i) => {
-      const doneKey = `done-${i}`;
-      const errKey = `err-${i}`;
-      if (scene.audioUrl && !scene.audioLoading && !loggedTtsRef.current.has(doneKey)) {
-        loggedTtsRef.current.add(doneKey);
-        addLog(`Scene ${i + 1} voice narration ready.`, "success");
-      } else if (scene.audioError?.startsWith('TTS Scene') && !loggedTtsRef.current.has(errKey)) {
-        loggedTtsRef.current.add(errKey);
-        addLog(scene.audioError, "error");
-      }
-    });
-  }, [scenesState]);
 
   useEffect(() => {
     if (logsContainerRef.current) {
@@ -343,18 +325,6 @@ export function AutoStoryGen() {
                   >
                     {Array.from({length: 40}, (_, i) => i + 1).map(n => <option key={n} value={n}>{n} Scene{n>1?'s':''}</option>)}
                   </select>
-                </div>
-                <div>
-                  <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] mb-3 ml-1 whitespace-nowrap">Auto Subtitles</label>
-                  <div 
-                    onClick={() => setShowSubtitles(!showSubtitles)}
-                    className={`w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 flex items-center justify-between cursor-pointer transition-all hover:bg-zinc-900 ${showSubtitles ? 'ring-1 ring-cyan-500/50' : ''}`}
-                  >
-                    <span className="text-sm text-white font-sans">{showSubtitles ? 'On' : 'Off'}</span>
-                    <div className={`w-10 h-5 rounded-full transition-colors relative ${showSubtitles ? 'bg-cyan-500' : 'bg-zinc-700'}`}>
-                      <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all ${showSubtitles ? 'left-6' : 'left-1'}`} />
-                    </div>
-                  </div>
                 </div>
               </div>
 
@@ -717,9 +687,6 @@ export function AutoStoryGen() {
                                 <div className="bg-zinc-950 p-3 rounded-xl border border-zinc-800/50">
                                   <p className="text-[9px] font-black text-cyan-500/50 uppercase tracking-widest mb-1">Narration</p>
                                   <p className="text-[10px] text-zinc-400 italic">"{scriptData.scenes[sceneIndex].narration}"</p>
-                                  {scene.audioUrl && (
-                                    <audio src={scene.audioUrl} controls className="w-full h-6 mt-2 opacity-50 hover:opacity-100 transition-opacity" />
-                                  )}
                                 </div>
                               )}
                             </div>

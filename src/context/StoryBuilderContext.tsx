@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { generateVideo, pollVideoOperation } from '../services/veoService';
 import { concatVideos } from '../services/videoAssemblyService';
+import { saveToStudioGallery } from '../services/supabase';
 import { useSettings } from './SettingsContext';
 import { v4 as uuidv4 } from 'uuid';
 import { AspectRatio } from '../types';
@@ -179,14 +180,73 @@ export const StoryBuilderProvider: React.FC<{ children: React.ReactNode }> = ({ 
     reader.readAsDataURL(file);
   }, []);
 
+  // Extract the last frame of a video for scene continuity chaining
+  const extractLastFrame = (videoUrl: string): Promise<{ data: string; mimeType: string } | null> => {
+    return new Promise((resolve) => {
+      try {
+        const video = document.createElement('video');
+        video.crossOrigin = 'anonymous';
+        video.muted = true;
+        video.playsInline = true;
+        video.style.display = 'none';
+        document.body.appendChild(video);
+
+        const cleanup = () => {
+          try {
+            video.pause();
+            video.removeAttribute('src');
+            video.load();
+            if (video.parentNode) video.parentNode.removeChild(video);
+          } catch (_) {}
+        };
+
+        video.onloadedmetadata = () => {
+          video.currentTime = Math.max(0, video.duration - 0.5);
+        };
+
+        video.onseeked = () => {
+          try {
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth || 1280;
+            canvas.height = video.videoHeight || 720;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) { cleanup(); resolve(null); return; }
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const data = canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
+            cleanup();
+            resolve({ data, mimeType: 'image/jpeg' });
+          } catch (e) {
+            cleanup();
+            resolve(null);
+          }
+        };
+
+        video.onerror = () => { cleanup(); resolve(null); };
+        setTimeout(() => { cleanup(); resolve(null); }, 10000);
+
+        video.src = videoUrl;
+        video.load();
+      } catch {
+        resolve(null);
+      }
+    });
+  };
+
   // Internal retry wrapper
-  const generateWithRetry = async (prompt: string, image: any, aspectRatio: AspectRatio, model: string, maxRetries = 5) => {
+  const generateWithRetry = async (
+    prompt: string,
+    image: any,
+    lastFrame: { data: string; mimeType: string } | undefined,
+    aspectRatio: AspectRatio,
+    model: string,
+    maxRetries = 5
+  ) => {
     let attempt = 0;
     const backoffDelays = [25000, 45000, 70000, 120000, 180000];
 
     while (attempt <= maxRetries) {
       try {
-        const operation = await generateVideo(prompt, image, undefined, aspectRatio, '720p', model);
+        const operation = await generateVideo(prompt, image, lastFrame, aspectRatio, '720p', model);
         const url = await pollVideoOperation(operation);
         return url;
       } catch (error: any) {
@@ -214,9 +274,25 @@ export const StoryBuilderProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const processQueue = async () => {
     const currentState = stateRef.current;
     if (currentState.isSequentialLoopRunning) return;
-    
+
     updateState({ isSequentialLoopRunning: true });
     const myGenerationId = currentState.currentGenerationId;
+
+    // Last frame of the most recently completed scene — used for visual continuity
+    let previousSceneLastFrame: { data: string; mimeType: string } | undefined = undefined;
+
+    // Seed previousSceneLastFrame from the scene that comes just before the first queued one
+    const allScenes = stateRef.current.scenes;
+    const firstQueuedIndex = allScenes.findIndex(
+      s => s.status === 'queued' || (s.loading && !s.url && !s.error && s.status !== 'error')
+    );
+    if (firstQueuedIndex > 0) {
+      const prevDone = allScenes[firstQueuedIndex - 1];
+      if (prevDone?.url) {
+        const frame = await extractLastFrame(prevDone.url).catch(() => null);
+        if (frame) previousSceneLastFrame = frame;
+      }
+    }
 
     try {
       while (true) {
@@ -240,34 +316,59 @@ export const StoryBuilderProvider: React.FC<{ children: React.ReactNode }> = ({ 
         const taskKey = `story-${sceneToProcessId}`;
         activeTasks.set(taskKey, true);
 
+        // Use last frame for continuity only when the user hasn't uploaded their own image
+        const lastFrameToUse = scene.image ? undefined : previousSceneLastFrame;
+        if (lastFrameToUse) {
+          addLog(`Using last frame of previous scene for continuity...`, 'info');
+        }
+
         setState(prev => ({
           ...prev,
           scenes: prev.scenes.map(s => s.id === sceneToProcessId ? { ...s, loading: true, status: 'processing', error: undefined, url: undefined } : s)
         }));
 
         try {
-          const url = await generateWithRetry(scene.prompt, scene.image, stateRef.current.aspectRatio, stateRef.current.veoModel);
-          if (myGenerationId !== stateRef.current.currentGenerationId || !activeTasks.has(taskKey)) return; 
-          
+          const url = await generateWithRetry(
+            scene.prompt,
+            scene.image,
+            lastFrameToUse,
+            stateRef.current.aspectRatio,
+            stateRef.current.veoModel
+          );
+          if (myGenerationId !== stateRef.current.currentGenerationId || !activeTasks.has(taskKey)) return;
+
           addLog(`Scene synthesized successfully!`, 'success');
           setState(prev => ({
             ...prev,
             scenes: prev.scenes.map(s => s.id === sceneToProcessId ? { ...s, loading: false, status: 'done', url } : s)
           }));
 
+          // Extract last frame of this scene for the next scene's continuity
+          const frame = await extractLastFrame(url).catch(() => null);
+          if (frame) previousSceneLastFrame = frame;
+
+          // Auto-save scene to Gallery
+          saveToStudioGallery({
+            type: 'video',
+            url,
+            prompt: scene.prompt,
+            settings: { model: stateRef.current.veoModel, source: 'story-builder' },
+          }).catch(e => console.warn('[StoryBuilder] Gallery save failed:', e));
+
         } catch (error: any) {
-          if (myGenerationId !== stateRef.current.currentGenerationId || !activeTasks.has(taskKey)) return; 
-          
+          if (myGenerationId !== stateRef.current.currentGenerationId || !activeTasks.has(taskKey)) return;
+
           const errorMessage = error?.message || 'Generation failed';
           addLog(`Error: ${errorMessage}`, 'error');
           setState(prev => ({
             ...prev,
             scenes: prev.scenes.map(s => s.id === sceneToProcessId ? { ...s, loading: false, status: 'error', error: errorMessage } : s)
           }));
+          // Don't update previousSceneLastFrame on error — keep using the last successful one
         } finally {
           activeTasks.delete(taskKey);
         }
-        
+
         if (myGenerationId !== stateRef.current.currentGenerationId) break;
         // Delay between scenes to protect quota
         await new Promise(resolve => setTimeout(resolve, 25000));
@@ -295,9 +396,9 @@ export const StoryBuilderProvider: React.FC<{ children: React.ReactNode }> = ({ 
   }, []);
 
   const assembleVideo = useCallback(async () => {
-    const selectedUrls = stateRef.current.scenes.filter(s => s.url).map(s => ({ 
+    const selectedUrls = stateRef.current.scenes.filter(s => s.url).map(s => ({
       videoUrl: s.url!,
-      audioUrl: s.url // Veo videos have audio embedded in the same URL
+      // No audioUrl — Veo videos have audio embedded; videoAssemblyService preserves it
     }));
     if (selectedUrls.length === 0) return;
 

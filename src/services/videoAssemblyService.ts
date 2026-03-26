@@ -71,14 +71,11 @@ export const concatVideos = async (
         ]);
         await ffmpeg.deleteFile(`ina${i}`).catch(() => {});
       } else {
-        // No narration: add a silent audio track so concat streams match
+        // No separate narration: re-encode embedded audio to AAC for concat compatibility
         await ffmpeg.exec([
           '-i', `inv${i}`,
-          '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo',
           '-c:v', 'copy',
-          '-c:a', 'aac', '-b:a', '64k',
-          '-map', '0:v:0', '-map', '1:a:0',
-          '-shortest',
+          '-c:a', 'aac', '-b:a', '128k', '-ar', '44100', '-ac', '2',
           outFile
         ]);
       }
