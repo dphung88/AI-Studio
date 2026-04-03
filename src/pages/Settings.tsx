@@ -56,39 +56,6 @@ export function Settings() {
     }
   };
 
-  const testApiKey = async () => {
-    if (!customApiKey) {
-      setTestResult({ success: false, message: 'Please enter an API key to test.' });
-      return;
-    }
-
-    setTestingKey(true);
-    setTestResult(null);
-
-    try {
-      const ai = new GoogleGenAI({ apiKey: customApiKey });
-      const response = await ai.models.generateContent({
-        model: llmModel || 'gemini-2.5-flash',
-        contents: 'Hello, are you working?',
-      });
-
-      if (response.text) {
-        setTestResult({ success: true, message: 'API Key is valid and working!' });
-      } else {
-        setTestResult({ success: false, message: 'API returned an empty response.' });
-      }
-    } catch (error: any) {
-      console.error('API Key test failed:', error);
-      let errorMessage = error.message || 'Unknown error occurred.';
-      if (errorMessage.includes('API_KEY_INVALID')) {
-        errorMessage = 'Invalid API Key. Please check and try again.';
-      }
-      setTestResult({ success: false, message: errorMessage });
-    } finally {
-      setTestingKey(false);
-    }
-  };
-
   return (
     <motion.div 
       initial={{ opacity: 0, y: 20 }}

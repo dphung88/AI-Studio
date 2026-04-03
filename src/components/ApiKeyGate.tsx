@@ -1,43 +1,44 @@
 import React, { useState } from 'react';
-import { KeyRound, ExternalLink, Eye, EyeOff, CheckCircle, AlertCircle } from 'lucide-react';
+import { KeyRound, Eye, EyeOff, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { useSettings } from '../context/SettingsContext';
 
 export function ApiKeyGate({ children }: { children: React.ReactNode }) {
-  const { customApiKey, setCustomApiKey } = useSettings();
+  const { arkApiKey, setArkApiKey } = useSettings();
   const [inputKey, setInputKey] = useState('');
   const [showKey, setShowKey] = useState(false);
   const [error, setError] = useState('');
   const [isValidating, setIsValidating] = useState(false);
 
   // If key already saved → render the app
-  if (customApiKey && customApiKey.trim().length > 0) {
+  if (arkApiKey && arkApiKey.trim().length > 0) {
     return <>{children}</>;
   }
 
   const handleSave = async () => {
     const trimmed = inputKey.trim();
     if (!trimmed) {
-      setError('Please enter a valid API key.');
-      return;
-    }
-    if (!trimmed.startsWith('AIza')) {
-      setError('This does not look like a Google AI API key. It should start with "AIza".');
+      setError('Please enter a valid ARK API key.');
       return;
     }
 
     setIsValidating(true);
     setError('');
 
-    // Quick validation — try a minimal Gemini call
+    // Quick validation — try a minimal Seed 2.0 call
     try {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models?key=${trimmed}`,
-        { method: 'GET' }
-      );
+      const res = await fetch('https://ark.ap-southeast.bytepluses.com/api/v3/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${trimmed}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'seed-2-0-lite-260228',
+          messages: [{ role: 'user', content: 'Hello' }],
+          max_tokens: 5,
+        }),
+      });
+      const data = await res.json();
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
         const msg = data?.error?.message || `HTTP ${res.status}`;
-        setError(`Invalid key or quota issue: ${msg}`);
+        setError(`Invalid key or error: ${msg}`);
         setIsValidating(false);
         return;
       }
@@ -47,7 +48,7 @@ export function ApiKeyGate({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    setCustomApiKey(trimmed);
+    setArkApiKey(trimmed);
     setIsValidating(false);
   };
 
@@ -57,13 +58,11 @@ export function ApiKeyGate({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen w-full items-center justify-center bg-zinc-950 p-4">
-      {/* Glowing background orb */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-cyan-500/5 blur-3xl" />
       </div>
 
       <div className="relative w-full max-w-md">
-        {/* Logo */}
         <div className="flex items-center gap-3 mb-8">
           <div className="bg-cyan-500 p-2.5 rounded-xl">
             <KeyRound className="w-6 h-6 text-black" />
@@ -74,23 +73,20 @@ export function ApiKeyGate({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-        {/* Card */}
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8 shadow-2xl">
-          <h2 className="text-white font-black text-xl mb-1">API Key Required</h2>
+          <h2 className="text-white font-black text-xl mb-1">BytePlus ARK API Key Required</h2>
           <p className="text-zinc-400 text-sm mb-6 leading-relaxed">
-            Enter your Google AI (Gemini) API key to use this studio.{' '}
-            <strong className="text-white">Your key is stored locally in your browser</strong> and
-            is never sent to our servers — all API calls go directly to Google.
+            Enter your <strong className="text-white">BytePlus ModelArk API key</strong> to use this studio.{' '}
+            Your key is stored locally in your browser and never sent to our servers.
           </p>
 
-          {/* Input */}
           <div className="relative mb-3">
             <input
               type={showKey ? 'text' : 'password'}
               value={inputKey}
               onChange={e => { setInputKey(e.target.value); setError(''); }}
               onKeyDown={handleKeyDown}
-              placeholder="AIza..."
+              placeholder="Paste your ARK API key here..."
               className="w-full bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-600 rounded-xl px-4 py-3 pr-12 text-sm focus:outline-none focus:border-cyan-500 transition-colors font-mono"
             />
             <button
@@ -102,7 +98,6 @@ export function ApiKeyGate({ children }: { children: React.ReactNode }) {
             </button>
           </div>
 
-          {/* Error */}
           {error && (
             <div className="flex items-start gap-2 text-red-400 text-xs mb-3 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
@@ -110,7 +105,6 @@ export function ApiKeyGate({ children }: { children: React.ReactNode }) {
             </div>
           )}
 
-          {/* Save button */}
           <button
             onClick={handleSave}
             disabled={isValidating || !inputKey.trim()}
@@ -118,7 +112,7 @@ export function ApiKeyGate({ children }: { children: React.ReactNode }) {
           >
             {isValidating ? (
               <>
-                <span className="w-4 h-4 border-2 border-black/40 border-t-black rounded-full animate-spin" />
+                <Loader2 className="w-4 h-4 animate-spin" />
                 Validating...
               </>
             ) : (
@@ -129,30 +123,18 @@ export function ApiKeyGate({ children }: { children: React.ReactNode }) {
             )}
           </button>
 
-          {/* Divider */}
           <div className="border-t border-zinc-800 my-5" />
 
-          {/* Info */}
           <div className="space-y-3">
-            <p className="text-zinc-500 text-xs font-semibold uppercase tracking-wider">How to get a free API key</p>
+            <p className="text-zinc-500 text-xs font-semibold uppercase tracking-wider">How to get your API key</p>
             <ol className="text-zinc-400 text-xs space-y-1.5 list-decimal list-inside leading-relaxed">
-              <li>Go to <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:text-cyan-300 underline">Google AI Studio → API Keys</a></li>
-              <li>Click <strong className="text-white">"Create API key"</strong></li>
+              <li>Go to <a href="https://console.byteplus.com/ark/region:ark+ap-southeast-1/apiKey" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:text-cyan-300 underline">BytePlus ModelArk Console → API Keys</a></li>
+              <li>Click <strong className="text-white">"Create API Key"</strong></li>
               <li>Copy and paste it above</li>
             </ol>
-            <a
-              href="https://aistudio.google.com/apikey"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 text-cyan-400 hover:text-cyan-300 text-xs font-semibold transition-colors mt-2"
-            >
-              <ExternalLink className="w-3.5 h-3.5" />
-              Open Google AI Studio
-            </a>
           </div>
         </div>
 
-        {/* Privacy note */}
         <p className="text-center text-zinc-600 text-xs mt-4">
           Your key is only stored in your browser's localStorage. No backend, no tracking.
         </p>
