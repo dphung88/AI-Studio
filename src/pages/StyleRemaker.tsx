@@ -606,6 +606,18 @@ export function StyleRemaker() {
                           </div>
                         </div>
 
+                        {/* Scene description & narration */}
+                        {scenes[i] && (
+                          <div className="px-3 pt-2.5 pb-1 space-y-1.5 border-b border-zinc-800/60">
+                            {scenes[i].action && (
+                              <p className="text-[9px] text-zinc-400 leading-relaxed line-clamp-2">{scenes[i].action}</p>
+                            )}
+                            {scenes[i].narration && (
+                              <p className="text-[9px] text-amber-400/80 italic line-clamp-1">"{scenes[i].narration}"</p>
+                            )}
+                          </div>
+                        )}
+
                         {/* Actions */}
                         <div className="flex items-center gap-2 p-3">
                           <button

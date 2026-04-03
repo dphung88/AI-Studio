@@ -17,10 +17,13 @@ export const getAiClient = () => {
  * Legacy veo-2.0-generate-001 deprecated → migrates to veo-3.1-generate-001 by June 30 2026.
  */
 const VERTEX_MODEL_MAP: Record<string, string> = {
-  'veo-3.1-fast-generate-preview': 'veo-3.1-fast-generate-001', // Gemini fast preview → Vertex fast
-  'veo-3-generate-preview':        'veo-3.1-generate-001',       // Gemini standard preview → Vertex standard
+  'veo-3.1-fast-generate-preview': 'veo-3.1-fast-generate-001', // Gemini fast preview → Vertex fast production
+  'veo-3.1-generate-preview':      'veo-3.1-generate-001',       // Gemini HQ preview → Vertex HQ production
+  'veo-3-generate-preview':        'veo-3.1-generate-001',       // old Gemini name → Vertex production
   'veo-3.0-generate-preview':      'veo-3.1-generate-001',       // old preview name → new production name
-  'veo-2.0-generate-001':          'veo-3.1-generate-001',       // deprecated → recommended migration per Google docs
+  'veo-3.0-generate-001':          'veo-3.1-generate-001',       // deprecated → new production name
+  'veo-3.0-fast-generate-001':     'veo-3.1-fast-generate-001',  // deprecated → new fast production name
+  'veo-2.0-generate-001':          'veo-2.0-generate-001',       // still valid until June 30 2026
 };
 
 const isVeo3Model = (model: string) => model.includes('veo-3');

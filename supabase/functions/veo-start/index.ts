@@ -102,11 +102,12 @@ serve(async (req) => {
     // Google updated Veo model names — new production IDs: veo-3.1-generate-001 / veo-3.1-fast-generate-001
     const VERTEX_MODEL_MAP: Record<string, string> = {
       'veo-3.1-fast-generate-preview': 'veo-3.1-fast-generate-001',
+      'veo-3.1-generate-preview':      'veo-3.1-generate-001',
       'veo-3-generate-preview':        'veo-3.1-generate-001',
       'veo-3.0-generate-preview':      'veo-3.1-generate-001',
-      'veo-3.0-generate-001':          'veo-3.1-generate-001',      // old deprecated name
-      'veo-3.0-fast-generate-001':     'veo-3.1-fast-generate-001', // old deprecated name
-      'veo-2.0-generate-001':          'veo-3.1-generate-001',      // deprecated → migrate per Google docs
+      'veo-3.0-generate-001':          'veo-3.1-generate-001',
+      'veo-3.0-fast-generate-001':     'veo-3.1-fast-generate-001',
+      'veo-2.0-generate-001':          'veo-2.0-generate-001',      // still valid until June 30 2026
     }
     const vertexModel = VERTEX_MODEL_MAP[model] ?? 'veo-3.1-generate-001'
     const isVeo3 = vertexModel.includes('veo-3')
