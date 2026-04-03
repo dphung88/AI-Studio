@@ -585,15 +585,20 @@ export const AutoStoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const finalUrl = await concatVideos(scenesToMerge, (progress) => {
         updateState({ assemblyProgress: Math.round(progress * 100) });
       });
-      updateState({ finalVideo: finalUrl, isAssembling: false, assemblyProgress: 100 });
+      // Save to Supabase and use permanent URL as finalVideo (blob: URLs expire on reload)
+      let permanentUrl = finalUrl;
+      try {
+        const freshSnap = stateRef.current;
+        const { data: saved } = await saveToStudioGallery({
+          type: 'video',
+          url: finalUrl,
+          prompt: `Auto Story master for idea: ${freshSnap.idea}`,
+          settings: { source: 'auto-story-master', style: freshSnap.style, sceneCount: freshSnap.sceneCount }
+        }) as any;
+        if (saved?.publicUrl) permanentUrl = saved.publicUrl;
+      } catch (_) {}
 
-      // Auto-save final assembled master video
-      saveToStudioGallery({
-        type: 'video',
-        url: finalUrl,
-        prompt: `Auto Story master for idea: ${state.idea}`,
-        settings: { source: 'auto-story-master', style: state.style, sceneCount: state.sceneCount }
-      });
+      updateState({ finalVideo: permanentUrl, isAssembling: false, assemblyProgress: 100 });
     } catch (error: any) {
       console.error('Failed to assemble video:', error);
       updateState({ isAssembling: false, assemblyError: error.message || 'Unknown error during assembly' });

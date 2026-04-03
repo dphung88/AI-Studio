@@ -10,16 +10,17 @@ export const getAiClient = () => {
 // ─── Vertex AI mode (routes through Supabase Edge Functions → GCP billing → $300 credit) ───
 
 /**
- * Vertex AI publisher model IDs differ from Gemini Developer API names.
- * Map UI-facing model names → the correct Vertex AI model identifier.
- * Veo 3 on Vertex AI uses veo-3.0-generate-preview (with audio support).
- * Veo 2 has no audio generation.
+ * Vertex AI publisher model IDs (production -001 suffix) differ from Gemini Developer API names (-preview suffix).
+ * Google has updated Veo model names — the new production IDs on Vertex AI are:
+ *   veo-3.1-generate-001      (standard quality, supports audio)
+ *   veo-3.1-fast-generate-001 (faster generation, supports audio)
+ * Legacy veo-2.0-generate-001 deprecated → migrates to veo-3.1-generate-001 by June 30 2026.
  */
 const VERTEX_MODEL_MAP: Record<string, string> = {
-  'veo-3.1-fast-generate-preview': 'veo-3.0-generate-preview', // no fast variant on Vertex; use 3.0
-  'veo-3-generate-preview':        'veo-3.0-generate-preview', // Gemini API name → Vertex name
-  'veo-3.0-generate-preview':      'veo-3.0-generate-preview',
-  'veo-2.0-generate-001':          'veo-2.0-generate-001',
+  'veo-3.1-fast-generate-preview': 'veo-3.1-fast-generate-001', // Gemini fast preview → Vertex fast
+  'veo-3-generate-preview':        'veo-3.1-generate-001',       // Gemini standard preview → Vertex standard
+  'veo-3.0-generate-preview':      'veo-3.1-generate-001',       // old preview name → new production name
+  'veo-2.0-generate-001':          'veo-3.1-generate-001',       // deprecated → recommended migration per Google docs
 };
 
 const isVeo3Model = (model: string) => model.includes('veo-3');
@@ -102,6 +103,11 @@ export const generateVideo = async (
     resolution: resolution === '1080p' ? '720p' : resolution,
     aspectRatio,
   };
+
+  // Veo 3 supports native audio/voiceover generation — must be explicitly enabled
+  if (isVeo3Model(model)) {
+    config.generateAudio = true;
+  }
 
   if (lastFrame) {
     config.lastFrame = { imageBytes: lastFrame.data, mimeType: lastFrame.mimeType };

@@ -103,14 +103,18 @@ serve(async (req) => {
     const { operationName, model = 'veo-2.0-generate-001' } = await req.json()
     if (!operationName) throw new Error('operationName is required')
 
-    // Map Gemini Developer API model names → Vertex AI publisher model names
+    // Map Gemini Developer API model names → Vertex AI production model IDs.
+    // Vertex AI uses -001 suffix (production), Gemini API uses -preview suffix.
+    // Google updated Veo model names — new production IDs: veo-3.1-generate-001 / veo-3.1-fast-generate-001
     const VERTEX_MODEL_MAP: Record<string, string> = {
-      'veo-3.1-fast-generate-preview': 'veo-3.0-generate-preview',
-      'veo-3-generate-preview':        'veo-3.0-generate-preview',
-      'veo-3.0-generate-preview':      'veo-3.0-generate-preview',
-      'veo-2.0-generate-001':          'veo-2.0-generate-001',
+      'veo-3.1-fast-generate-preview': 'veo-3.1-fast-generate-001',
+      'veo-3-generate-preview':        'veo-3.1-generate-001',
+      'veo-3.0-generate-preview':      'veo-3.1-generate-001',
+      'veo-3.0-generate-001':          'veo-3.1-generate-001',      // old deprecated name
+      'veo-3.0-fast-generate-001':     'veo-3.1-fast-generate-001', // old deprecated name
+      'veo-2.0-generate-001':          'veo-3.1-generate-001',      // deprecated → migrate per Google docs
     }
-    const vertexModel = VERTEX_MODEL_MAP[model] ?? 'veo-2.0-generate-001'
+    const vertexModel = VERTEX_MODEL_MAP[model] ?? 'veo-3.1-generate-001'
 
     const location = 'us-central1'
     const projectId = sa.project_id

@@ -97,15 +97,18 @@ serve(async (req) => {
       generateAudio = false,  // Veo 3 supports audio; frontend sets this true for Veo 3 models
     } = await req.json()
 
-    // Safety net: map Gemini API model names → Vertex AI model IDs in case
-    // the frontend mapping is on an older deploy.
+    // Safety net: map Gemini API model names → Vertex AI production model IDs.
+    // Vertex AI uses -001 suffix (production), Gemini API uses -preview suffix.
+    // Google updated Veo model names — new production IDs: veo-3.1-generate-001 / veo-3.1-fast-generate-001
     const VERTEX_MODEL_MAP: Record<string, string> = {
-      'veo-3.1-fast-generate-preview': 'veo-3.0-generate-preview',
-      'veo-3-generate-preview':        'veo-3.0-generate-preview',
-      'veo-3.0-generate-preview':      'veo-3.0-generate-preview',
-      'veo-2.0-generate-001':          'veo-2.0-generate-001',
+      'veo-3.1-fast-generate-preview': 'veo-3.1-fast-generate-001',
+      'veo-3-generate-preview':        'veo-3.1-generate-001',
+      'veo-3.0-generate-preview':      'veo-3.1-generate-001',
+      'veo-3.0-generate-001':          'veo-3.1-generate-001',      // old deprecated name
+      'veo-3.0-fast-generate-001':     'veo-3.1-fast-generate-001', // old deprecated name
+      'veo-2.0-generate-001':          'veo-3.1-generate-001',      // deprecated → migrate per Google docs
     }
-    const vertexModel = VERTEX_MODEL_MAP[model] ?? 'veo-2.0-generate-001'
+    const vertexModel = VERTEX_MODEL_MAP[model] ?? 'veo-3.1-generate-001'
     const isVeo3 = vertexModel.includes('veo-3')
 
     const token = await getAccessToken(sa)

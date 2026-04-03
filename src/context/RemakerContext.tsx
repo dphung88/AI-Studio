@@ -603,16 +603,26 @@ export const RemakerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         updateState({ assemblyProgress: percent });
       });
       addLog('Master assembly complete!', 'success');
-      updateState({ finalVideo: finalUrl, isAssembling: false, assemblyProgress: 100 });
 
-      // Auto-save final assembled master video
+      // Save to Supabase and use permanent URL as finalVideo (blob: URLs expire on reload)
       const currentStateSnap = stateRef.current;
-      saveToStudioGallery({
-        type: 'video',
-        url: finalUrl,
-        prompt: `Remake master for style ${currentStateSnap.selectedStyle}`,
-        settings: { source: 'remaker-master', style: currentStateSnap.selectedStyle, sceneCount: currentStateSnap.scenes.length }
-      });
+      let permanentUrl = finalUrl;
+      try {
+        const { data: saved } = await saveToStudioGallery({
+          type: 'video',
+          url: finalUrl,
+          prompt: `Remake master for style ${currentStateSnap.selectedStyle}`,
+          settings: { source: 'remaker-master', style: currentStateSnap.selectedStyle, sceneCount: currentStateSnap.scenes.length }
+        }) as any;
+        if (saved?.publicUrl) {
+          permanentUrl = saved.publicUrl;
+          addLog('Master video saved to gallery.', 'success');
+        }
+      } catch (_) {
+        addLog('Could not save master to gallery (will use local URL).', 'info');
+      }
+
+      updateState({ finalVideo: permanentUrl, isAssembling: false, assemblyProgress: 100 });
     } catch (error: any) {
       const errorMsg = error.message || 'Unknown error during assembly';
       console.error('Concat failed', error);
