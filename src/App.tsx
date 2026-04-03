@@ -57,6 +57,7 @@ function Sidebar() {
   const providerBadgeColor = provider === 'bytedance'
     ? 'text-orange-500 bg-orange-500/10 border-orange-500/20'
     : 'text-cyan-600 bg-cyan-500/10 border-cyan-500/20';
+  const appVersion = (typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '1.1.0') as string;
 
   return (
     <div className="w-64 bg-main-bg border-r border-zinc-800 flex flex-col h-full shrink-0">
@@ -121,7 +122,7 @@ function Sidebar() {
         <div className="flex items-center justify-between">
           <span className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.2em]">Version</span>
           <span className={`text-[9px] font-black border px-2 py-0.5 rounded-full tracking-widest ${providerBadgeColor}`}>
-            v1.0.0
+            v{appVersion}
           </span>
         </div>
         <p className="text-[8px] text-zinc-700 mt-1 tracking-wide">Powered by {providerLabel}</p>
