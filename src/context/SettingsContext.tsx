@@ -9,16 +9,18 @@ interface SettingsState {
   defaultAspectRatio: string;
   customApiKey: string;
   useVertexAI: boolean;
+  arkApiKey: string; // BytePlus ModelArk API key
 }
 
 const initialState: SettingsState = {
   projectName: 'My Studio Project',
   storagePath: '/downloads/studio',
-  defaultModel: 'veo-2.0-generate-001',
-  llmModel: 'gemini-2.5-flash',
+  defaultModel: 'seedance-1-5-pro',
+  llmModel: 'seed-2-0-lite-260228',
   defaultAspectRatio: '16:9',
   customApiKey: '',
   useVertexAI: false,
+  arkApiKey: '',
 };
 
 interface SettingsContextType extends SettingsState {
@@ -30,6 +32,7 @@ interface SettingsContextType extends SettingsState {
   setDefaultAspectRatio: (ratio: string) => void;
   setCustomApiKey: (key: string) => void;
   setUseVertexAI: (val: boolean) => void;
+  setArkApiKey: (key: string) => void;
   setDirectoryHandle: (handle: FileSystemDirectoryHandle | null) => void;
   resetSettings: () => void;
 }
@@ -87,6 +90,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setDefaultAspectRatio: (defaultAspectRatio) => updateState({ defaultAspectRatio }),
       setCustomApiKey: (customApiKey) => updateState({ customApiKey }),
       setUseVertexAI: (useVertexAI) => updateState({ useVertexAI }),
+      setArkApiKey: (arkApiKey) => updateState({ arkApiKey }),
       setDirectoryHandle: (handle) => setDirectoryHandle(handle),
       resetSettings: () => {
         setState(initialState);

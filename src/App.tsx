@@ -118,7 +118,7 @@ function Sidebar() {
             v1.0.0
           </span>
         </div>
-        <p className="text-[8px] text-zinc-700 mt-1 tracking-wide">Powered by Veo 3.1 · Gemini 2.5</p>
+        <p className="text-[8px] text-zinc-700 mt-1 tracking-wide">Powered by Seedance · Seed 2.0</p>
       </div>
     </div>
   );

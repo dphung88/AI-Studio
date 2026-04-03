@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Upload, Wand2, Loader2, Play, CheckCircle2, Video, RefreshCw, AlertCircle, Film, Download, Terminal, Layers, Sparkles, X, RotateCcw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { extractFrames, analyzeVideoScenes } from '../services/geminiService';
+import { extractFrames, analyzeVideoScenes } from '../services/seedService';
 import { useRemaker } from '../context/RemakerContext';
 import { useSettings } from '../context/SettingsContext';
 import { getApiKey, getLlmModel } from '../services/apiConfig';
@@ -494,6 +494,20 @@ export function StyleRemaker() {
                         className="w-full bg-zinc-900/60 border border-zinc-700 rounded-xl px-4 py-2.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-cyan-500/50"
                       />
                     </div>
+                    {/* Video Model */}
+                    <div className="mb-6">
+                      <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-2 block">Video Model</label>
+                      <select
+                        value={veoModel}
+                        onChange={e => setVeoModel(e.target.value)}
+                        className="w-full bg-zinc-900/60 border border-zinc-700 rounded-xl px-4 py-2.5 text-xs text-cyan-400 focus:outline-none focus:border-cyan-500/50 appearance-none"
+                      >
+                        <option value="seedance-1-5-pro">Seedance 1.5 Pro (Audio)</option>
+                        <option value="seedance-1-0-pro-fast">Seedance 1.0 Pro Fast</option>
+                        <option value="seedance-1-0-pro">Seedance 1.0 Pro</option>
+                      </select>
+                    </div>
+
                     {/* Voiceover language */}
                     <div className="mb-6">
                       <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-2 block">Voiceover Language</label>

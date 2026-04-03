@@ -90,7 +90,7 @@ export function QuickGen() {
         <div className="flex-1">
           <div className="flex items-center gap-4 mb-6">
             <div className="h-[2px] w-12 bg-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.5)]"></div>
-            <span className="text-cyan-500 font-black tracking-[0.3em] text-[10px] uppercase">Veo 3.1 Instant Engine</span>
+            <span className="text-cyan-500 font-black tracking-[0.3em] text-[10px] uppercase">Seedance 1.5 Instant Engine</span>
           </div>
           <h1 className="text-6xl md:text-7xl font-black text-white tracking-tighter uppercase leading-[0.85] mb-8 whitespace-nowrap font-sans">
             Quick <span className="text-cyan-500">Gen</span>
@@ -188,8 +188,8 @@ export function QuickGen() {
                         onChange={(e) => setVeoModel(e.target.value)}
                         className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-5 py-4 text-cyan-500 font-sans focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 outline-none appearance-none transition-all cursor-pointer"
                       >
-                        <option value="veo-3.1-fast-generate-preview" className="bg-zinc-900">Veo 3.1 - Fast</option>
-                        <option value="veo-3.1-generate-preview" className="bg-zinc-900">Veo 3.1 - High Quality</option>
+                        <option value="seedance-1-5-pro" class="bg-zinc-900">Seedance 1.5 Pro (Audio)</option>
+                        <option value="seedance-1-0-pro-fast" class="bg-zinc-900">Seedance 1.0 Pro Fast</option>
                       </select>
                       <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none opacity-30">
                         <ArrowRight className="w-4 h-4 rotate-90" />

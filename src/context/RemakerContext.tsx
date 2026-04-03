@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { generateVideo, pollVideoOperation } from '../services/veoService';
+import { generateVideo, pollVideoOperation } from '../services/bytedanceVideoService';
 import { concatVideos } from '../services/videoAssemblyService';
-import { improveScenePrompt } from '../services/geminiService';
+import { improveScenePrompt } from '../services/seedService';
 import { saveToStudioGallery } from '../services/supabase';
 import { storeVideoBlob, getVideoBlob, clearAllVideoBlobs } from '../services/videoStorage';
 import { useSettings } from './SettingsContext';

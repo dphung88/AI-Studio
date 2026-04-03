@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
-import { Settings as SettingsIcon, Save, RefreshCw, FolderOpen, Database, Layout, Monitor, CheckCircle2, Key, AlertCircle, Loader2, Cpu, ExternalLink } from 'lucide-react';
+import { Settings as SettingsIcon, Save, RefreshCw, FolderOpen, Database, Layout, Monitor, CheckCircle2, Key, AlertCircle, Loader2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useSettings } from '../context/SettingsContext';
-import { GoogleGenAI } from '@google/genai';
 import { checkStorageBucket } from '../services/supabase';
 
 export function Settings() {
@@ -12,8 +11,7 @@ export function Settings() {
     defaultModel, setDefaultModel,
     llmModel, setLlmModel,
     defaultAspectRatio, setDefaultAspectRatio,
-    customApiKey, setCustomApiKey,
-    useVertexAI, setUseVertexAI,
+    arkApiKey, setArkApiKey,
     directoryHandle, setDirectoryHandle,
     resetSettings
   } = useSettings();
@@ -27,6 +25,35 @@ export function Settings() {
   const handleSave = () => {
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+  };
+
+  const testApiKey = async () => {
+    if (!arkApiKey) {
+      setTestResult({ success: false, message: 'Please enter an ARK API key to test.' });
+      return;
+    }
+    setTestingKey(true);
+    setTestResult(null);
+    try {
+      const res = await fetch('https://ark.ap-southeast.bytepluses.com/api/v3/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${arkApiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'seed-2-0-lite-260228',
+          messages: [{ role: 'user', content: 'Hello, are you working?' }],
+        }),
+      });
+      const data = await res.json();
+      if (data.choices?.[0]?.message?.content) {
+        setTestResult({ success: true, message: 'ARK API Key is valid and working!' });
+      } else {
+        setTestResult({ success: false, message: `Unexpected response: ${JSON.stringify(data)}` });
+      }
+    } catch (err: any) {
+      setTestResult({ success: false, message: err.message || 'Connection failed.' });
+    } finally {
+      setTestingKey(false);
+    }
   };
 
   const testApiKey = async () => {
@@ -205,9 +232,9 @@ export function Settings() {
                   onChange={(e) => setDefaultModel(e.target.value)}
                   className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-cyan-500 font-sans focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none appearance-none transition-all"
                 >
-                  <option value="veo-2.0-generate-001">Veo 2.0 (Stable)</option>
-                  <option value="veo-3.1-fast-generate-preview">Veo 3.1 - Fast (Experimental)</option>
-                  <option value="veo-3.1-generate-preview">Veo 3.1 - High Quality (Experimental)</option>
+                  <option value="seedance-1-5-pro">Seedance 1.5 Pro (Audio + Video)</option>
+                  <option value="seedance-1-0-pro-fast">Seedance 1.0 Pro Fast</option>
+                  <option value="seedance-1-0-pro">Seedance 1.0 Pro</option>
                 </select>
               </div>
 
@@ -215,16 +242,15 @@ export function Settings() {
                 <label className="block text-sm font-bold text-zinc-500 uppercase tracking-wider mb-3">AI Intelligence Model (LLM)</label>
                 <div className="flex flex-wrap gap-3">
                   {[
-                    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', desc: 'Fast & Smart' },
-                    { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', desc: 'Highest Intelligence' },
-                    { id: 'gemini-2.0-flash-001', name: 'Gemini 2.0 Flash', desc: 'Stable Legacy' }
+                    { id: 'seed-2-0-lite-260228', name: 'Seed 2.0 Lite', desc: 'Fast & Smart' },
+                    { id: 'seed-2-0-pro-260328', name: 'Seed 2.0 Pro', desc: 'Highest Intelligence' },
                   ].map(model => (
                     <button
                       key={model.id}
                       onClick={() => setLlmModel(model.id)}
                       className={`flex-1 min-w-[140px] p-4 rounded-xl border text-left transition-all ${
-                        (llmModel || 'gemini-2.0-flash') === model.id 
-                          ? 'bg-cyan-500/10 border-cyan-500 text-cyan-400 shadow-[0_0_20px_rgba(6,182,212,0.1)]' 
+                        (llmModel || 'seed-2-0-lite-260228') === model.id
+                          ? 'bg-cyan-500/10 border-cyan-500 text-cyan-400 shadow-[0_0_20px_rgba(6,182,212,0.1)]'
                           : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:border-zinc-700'
                       }`}
                     >
@@ -233,10 +259,6 @@ export function Settings() {
                     </button>
                   ))}
                 </div>
-                <p className="mt-3 text-[10px] text-zinc-500 italic flex items-center gap-2">
-                  <AlertCircle className="w-3 h-3" />
-                  Gemini 1.5 models are deprecated. Use 2.0+ for compatibility.
-                </p>
               </div>
 
               <div>
@@ -255,73 +277,31 @@ export function Settings() {
               <div className="pt-6 border-t border-zinc-800/50">
                 <div className="flex items-center gap-3 text-white mb-6">
                   <Key className="w-5 h-5 text-cyan-500" />
-                  <h3 className="text-xl font-bold uppercase tracking-tight">API Configuration</h3>
+                  <h3 className="text-xl font-bold uppercase tracking-tight">BytePlus ARK API Key</h3>
                 </div>
-
-                {/* Vertex AI toggle */}
-                <div className={`mb-6 rounded-2xl border p-5 transition-all ${useVertexAI ? 'bg-emerald-500/5 border-emerald-500/30' : 'bg-zinc-950 border-zinc-800'}`}>
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-start gap-3">
-                      <div className={`p-2 rounded-xl ${useVertexAI ? 'bg-emerald-500/10' : 'bg-zinc-800'}`}>
-                        <Cpu className={`w-5 h-5 ${useVertexAI ? 'text-emerald-400' : 'text-zinc-500'}`} />
-                      </div>
-                      <div>
-                        <p className="text-white font-bold text-sm uppercase tracking-wider mb-1">
-                          Use GCP Credits for Video (Vertex AI)
-                        </p>
-                        <p className="text-zinc-500 text-xs leading-relaxed">
-                          Route Veo video generation through Vertex AI → charges go to your Google Cloud project → <strong className="text-zinc-300">uses $300 free trial credit</strong> instead of direct billing.
-                        </p>
-                        {useVertexAI && (
-                          <p className="mt-2 text-emerald-400 text-xs font-semibold">
-                            ✓ Active — Veo calls will use your GCP free credits
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    {/* Toggle switch */}
-                    <button
-                      onClick={() => setUseVertexAI(!useVertexAI)}
-                      className={`relative shrink-0 w-12 h-6 rounded-full transition-colors duration-200 ${useVertexAI ? 'bg-emerald-500' : 'bg-zinc-700'}`}
-                    >
-                      <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${useVertexAI ? 'translate-x-6' : 'translate-x-0'}`} />
-                    </button>
-                  </div>
-
-                  {useVertexAI && (
-                    <div className="mt-4 pt-4 border-t border-emerald-500/20">
-                      <p className="text-xs text-zinc-400 font-semibold uppercase tracking-wider mb-2">One-time Setup Required:</p>
-                      <ol className="text-xs text-zinc-400 space-y-1 list-decimal list-inside leading-relaxed">
-                        <li>Create a <strong className="text-white">Google Cloud service account</strong> with role: <code className="text-emerald-400">Vertex AI User</code></li>
-                        <li>Download the <strong className="text-white">JSON key</strong> file</li>
-                        <li>In <a href="https://supabase.com/dashboard" target="_blank" rel="noopener noreferrer" className="text-cyan-400 underline">Supabase Dashboard</a> → Edge Functions → Secrets → add: <code className="text-emerald-400 break-all">GOOGLE_SA_JSON = (paste JSON content)</code></li>
-                        <li>Enable <strong className="text-white">Vertex AI API</strong> on your GCP project</li>
-                      </ol>
-                      <a href="https://console.cloud.google.com/iam-admin/serviceaccounts" target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-1.5 text-cyan-400 text-xs font-semibold hover:text-cyan-300 transition-colors">
-                        <ExternalLink className="w-3.5 h-3.5" />
-                        Open GCP Service Accounts
-                      </a>
-                    </div>
-                  )}
-                </div>
+                <p className="text-xs text-zinc-500 mb-4 leading-relaxed">
+                  Get your API key from{' '}
+                  <a href="https://console.byteplus.com/ark/region:ark+ap-southeast-1/apiKey" target="_blank" rel="noopener noreferrer" className="text-cyan-400 underline">
+                    BytePlus ModelArk Console
+                  </a>. Used for all video generation (Seedance) and LLM (Seed 2.0) calls.
+                </p>
 
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-bold text-zinc-500 uppercase tracking-wider mb-3">Custom Gemini API Key</label>
                     <div className="flex gap-3">
                       <div className="relative flex-1">
                         <Key className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600" />
-                        <input 
-                          type="password" 
-                          value={customApiKey}
-                          onChange={(e) => setCustomApiKey(e.target.value)}
-                          placeholder="Enter your Gemini API Key"
+                        <input
+                          type="password"
+                          value={arkApiKey}
+                          onChange={(e) => setArkApiKey(e.target.value)}
+                          placeholder="Enter your BytePlus ARK API Key"
                           className="w-full bg-zinc-950 border border-zinc-800 rounded-xl pl-12 pr-4 py-3 text-cyan-500 font-sans focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none transition-all"
                         />
                       </div>
                       <button
                         onClick={testApiKey}
-                        disabled={testingKey || !customApiKey}
+                        disabled={testingKey || !arkApiKey}
                         className="bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-zinc-300 px-6 py-3 rounded-xl font-bold text-xs uppercase tracking-widest transition-all border border-zinc-700 flex items-center gap-2"
                       >
                         {testingKey ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
@@ -332,8 +312,8 @@ export function Settings() {
 
                   {testResult && (
                     <div className={`p-4 rounded-xl border flex items-start gap-3 animate-in fade-in slide-in-from-top-2 ${
-                      testResult.success 
-                        ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-400' 
+                      testResult.success
+                        ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-400'
                         : 'bg-red-500/5 border-red-500/20 text-red-400'
                     }`}>
                       {testResult.success ? <CheckCircle2 className="w-5 h-5 shrink-0" /> : <AlertCircle className="w-5 h-5 shrink-0" />}
