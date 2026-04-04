@@ -45,21 +45,8 @@ serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
       }
-
-      // Download the video server-side (pre-signed URL, no auth needed)
-      const dlRes = await fetch(videoUrl)
-      if (!dlRes.ok) {
-        return new Response(JSON.stringify({ error: `Failed to download Seedance video: ${dlRes.statusText}` }), {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
-      }
-
-      const videoBuffer = await dlRes.arrayBuffer()
-      const base64 = btoa(String.fromCharCode(...new Uint8Array(videoBuffer)))
-      const mimeType = dlRes.headers.get('content-type') || 'video/mp4'
-
-      return new Response(JSON.stringify({ status: 'succeeded', videoBase64: base64, mimeType }), {
+      // Return the pre-signed URL — client downloads directly (avoids large base64 transfer)
+      return new Response(JSON.stringify({ status: 'succeeded', videoUrl }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }

@@ -142,11 +142,10 @@ export const seedancePoll = async (
     if (data.error) throw new Error(data.error);
 
     if (data.status === 'succeeded') {
-      // Edge function downloaded the video and returned it as base64
-      const byteChars = atob(data.videoBase64);
-      const byteArr = new Uint8Array(byteChars.length);
-      for (let i = 0; i < byteChars.length; i++) byteArr[i] = byteChars.charCodeAt(i);
-      const blob = new Blob([byteArr], { type: data.mimeType || 'video/mp4' });
+      // Download the pre-signed video URL returned by the edge function
+      const dlRes = await fetch(data.videoUrl);
+      if (!dlRes.ok) throw new Error(`Failed to download Seedance video: ${dlRes.statusText}`);
+      const blob = await dlRes.blob();
       return URL.createObjectURL(blob);
     }
     // status: queued | running → keep polling
