@@ -10,11 +10,14 @@
 const BASE_URL = 'https://ark.ap-southeast.bytepluses.com/api/v3';
 const VIDEO_TASKS = `${BASE_URL}/contents/generations/tasks`;
 
-// ─── Vertex AI–style model map: UI label → Seedance model ID ─────────────────
+// ─── Model map: UI label → Seedance model ID ─────────────────────────────────
+// Use model names without version suffix for stability.
+// If BytePlus requires a custom inference endpoint (ep-xxxx), set it in
+// Settings → Seedance Video Endpoint ID — that will override these values.
 export const SEEDANCE_MODEL_MAP: Record<string, string> = {
-  'seedance-1-5-pro':      'seedance-1-5-pro-251215',
-  'seedance-1-0-pro-fast': 'seedance-1-0-pro-fast-251015',
-  'seedance-1-0-pro':      'seedance-1-0-pro-250428',
+  'seedance-1-5-pro':      'seedance-1-5-pro',
+  'seedance-1-0-pro-fast': 'seedance-1-0-pro-fast',
+  'seedance-1-0-pro':      'seedance-1-0-pro',
 };
 
 export const getArkApiKey = (): string => {
