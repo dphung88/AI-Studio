@@ -50,6 +50,7 @@ export interface SeedanceOptions {
   resolution?: '480p' | '720p' | '1080p';
   ratio?: '16:9' | '9:16' | '1:1' | '4:3' | '3:4' | '21:9';
   duration?: number;        // 2–12 seconds
+  generateAudio?: boolean;  // Seedance 1.5 Pro enables audio natively — ignored in request body
 }
 
 // ─── Create task ──────────────────────────────────────────────────────────────
@@ -68,6 +69,22 @@ export const seedanceStart = async (
   // Resolve model ID — uses custom endpoint if set in Settings, else falls back to model map
   const rawModel = options.model ?? 'seedance-1-5-pro';
   const modelId = getArkVideoEndpoint(rawModel);
+
+  // BytePlus requires a custom inference endpoint for video generation — model names return 404.
+  // Validate early so the user gets a clear actionable error instead of a cryptic 404.
+  const hasCustomEndpoint = (() => {
+    try {
+      const s = JSON.parse(localStorage.getItem('studioSettings') || '{}');
+      return !!(s.arkVideoEndpoint && s.arkVideoEndpoint.trim());
+    } catch { return false; }
+  })();
+  if (!hasCustomEndpoint) {
+    throw new Error(
+      'BytePlus requires a custom inference endpoint for video generation. ' +
+      'Go to Settings → ByteDance → "Seedance Video Endpoint ID" and enter your ep-xxxx ID. ' +
+      '(BytePlus Console → Online Inference → Create Endpoint → copy the ep-xxxx ID)'
+    );
+  }
 
   // Build text with inline parameter flags (BytePlus Seedance API format)
   const ratio      = options.ratio ?? '16:9';
