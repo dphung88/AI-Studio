@@ -25,7 +25,7 @@ function extractJson(text: string): string {
 const getLlmModel = (): string => {
   try {
     const s = localStorage.getItem('studioSettings');
-    if (s) return JSON.parse(s).llmModel || 'seed-2-0-lite-260228';
+    if (s) return JSON.parse(s).arkLlmModel || 'seed-2-0-lite-260228';
   } catch (_) {}
   return 'seed-2-0-lite-260228';
 };
