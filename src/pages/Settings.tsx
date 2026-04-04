@@ -18,10 +18,12 @@ export function Settings() {
     defaultModel, setDefaultModel,
     llmModel, setLlmModel,
     useVertexAI, setUseVertexAI,
+    googleEnabled, setGoogleEnabled,
     // ByteDance
     arkApiKey, setArkApiKey,
     arkDefaultModel, setArkDefaultModel,
     arkLlmModel, setArkLlmModel,
+    bytedanceEnabled, setBytedanceEnabled,
   } = useSettings();
 
   const [saved, setSaved] = useState(false);
@@ -125,46 +127,80 @@ export function Settings() {
           <p className="text-zinc-500 text-sm mb-6">Choose which AI backend to use for video generation and script writing. You can configure both and switch anytime.</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Google */}
-            <button
-              onClick={() => setProvider('google')}
-              className={`p-6 rounded-2xl border text-left transition-all ${
-                provider === 'google'
+            <div className={`p-6 rounded-2xl border text-left transition-all relative ${
+              !googleEnabled
+                ? 'bg-zinc-950 border-zinc-800 opacity-60'
+                : provider === 'google'
                   ? 'bg-blue-500/10 border-blue-500 shadow-[0_0_24px_rgba(59,130,246,0.12)]'
-                  : 'bg-zinc-950 border-zinc-800 hover:border-zinc-700'
-              }`}
-            >
-              <div className="flex items-center gap-3 mb-3">
-                <div className={`p-2 rounded-xl ${provider === 'google' ? 'bg-blue-500/20' : 'bg-zinc-800'}`}>
-                  <img src="https://www.gstatic.com/images/branding/product/2x/googleg_48dp.png" alt="Google" className="w-5 h-5" />
+                  : 'bg-zinc-950 border-zinc-800'
+            }`}>
+              {/* Enable/Disable toggle */}
+              <button
+                onClick={(e) => { e.stopPropagation(); setGoogleEnabled(!googleEnabled); }}
+                className={`absolute top-4 right-4 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
+                  googleEnabled
+                    ? 'bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25'
+                    : 'bg-red-500/15 text-red-400 hover:bg-red-500/25'
+                }`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${googleEnabled ? 'bg-emerald-400' : 'bg-red-400'}`} />
+                {googleEnabled ? 'Enabled' : 'Disabled'}
+              </button>
+              {/* Card body — click to set active provider */}
+              <button onClick={() => setProvider('google')} className="w-full text-left">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className={`p-2 rounded-xl ${provider === 'google' && googleEnabled ? 'bg-blue-500/20' : 'bg-zinc-800'}`}>
+                    <img src="https://www.gstatic.com/images/branding/product/2x/googleg_48dp.png" alt="Google" className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className={`font-black text-sm uppercase tracking-wider ${provider === 'google' && googleEnabled ? 'text-blue-400' : 'text-zinc-400'}`}>Google</p>
+                    {!googleEnabled
+                      ? <p className="text-[10px] text-red-400/70 font-bold uppercase tracking-widest">Disabled</p>
+                      : provider === 'google' && <p className="text-[10px] text-blue-400/70 font-bold uppercase tracking-widest">Active</p>
+                    }
+                  </div>
                 </div>
-                <div>
-                  <p className={`font-black text-sm uppercase tracking-wider ${provider === 'google' ? 'text-blue-400' : 'text-zinc-400'}`}>Google</p>
-                  {provider === 'google' && <p className="text-[10px] text-blue-400/70 font-bold uppercase tracking-widest">Active</p>}
-                </div>
-              </div>
-              <p className="text-zinc-500 text-xs leading-relaxed">Veo 3.1 video generation · Gemini 2.5 LLM · Vertex AI support</p>
-            </button>
+                <p className="text-zinc-500 text-xs leading-relaxed">Veo 3.1 video generation · Gemini 2.5 LLM · Vertex AI support</p>
+              </button>
+            </div>
 
             {/* ByteDance */}
-            <button
-              onClick={() => setProvider('bytedance')}
-              className={`p-6 rounded-2xl border text-left transition-all ${
-                provider === 'bytedance'
+            <div className={`p-6 rounded-2xl border text-left transition-all relative ${
+              !bytedanceEnabled
+                ? 'bg-zinc-950 border-zinc-800 opacity-60'
+                : provider === 'bytedance'
                   ? 'bg-orange-500/10 border-orange-500 shadow-[0_0_24px_rgba(249,115,22,0.12)]'
-                  : 'bg-zinc-950 border-zinc-800 hover:border-zinc-700'
-              }`}
-            >
-              <div className="flex items-center gap-3 mb-3">
-                <div className={`p-2 rounded-xl ${provider === 'bytedance' ? 'bg-orange-500/20' : 'bg-zinc-800'}`}>
-                  <span className={`text-base font-black ${provider === 'bytedance' ? 'text-orange-400' : 'text-zinc-400'}`}>火</span>
+                  : 'bg-zinc-950 border-zinc-800'
+            }`}>
+              {/* Enable/Disable toggle */}
+              <button
+                onClick={(e) => { e.stopPropagation(); setBytedanceEnabled(!bytedanceEnabled); }}
+                className={`absolute top-4 right-4 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
+                  bytedanceEnabled
+                    ? 'bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25'
+                    : 'bg-red-500/15 text-red-400 hover:bg-red-500/25'
+                }`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${bytedanceEnabled ? 'bg-emerald-400' : 'bg-red-400'}`} />
+                {bytedanceEnabled ? 'Enabled' : 'Disabled'}
+              </button>
+              {/* Card body — click to set active provider */}
+              <button onClick={() => setProvider('bytedance')} className="w-full text-left">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className={`p-2 rounded-xl ${provider === 'bytedance' && bytedanceEnabled ? 'bg-orange-500/20' : 'bg-zinc-800'}`}>
+                    <span className={`text-base font-black ${provider === 'bytedance' && bytedanceEnabled ? 'text-orange-400' : 'text-zinc-400'}`}>火</span>
+                  </div>
+                  <div>
+                    <p className={`font-black text-sm uppercase tracking-wider ${provider === 'bytedance' && bytedanceEnabled ? 'text-orange-400' : 'text-zinc-400'}`}>ByteDance</p>
+                    {!bytedanceEnabled
+                      ? <p className="text-[10px] text-red-400/70 font-bold uppercase tracking-widest">Disabled</p>
+                      : provider === 'bytedance' && <p className="text-[10px] text-orange-400/70 font-bold uppercase tracking-widest">Active</p>
+                    }
+                  </div>
                 </div>
-                <div>
-                  <p className={`font-black text-sm uppercase tracking-wider ${provider === 'bytedance' ? 'text-orange-400' : 'text-zinc-400'}`}>ByteDance</p>
-                  {provider === 'bytedance' && <p className="text-[10px] text-orange-400/70 font-bold uppercase tracking-widest">Active</p>}
-                </div>
-              </div>
-              <p className="text-zinc-500 text-xs leading-relaxed">Seedance 1.5 Pro video generation · Seed 2.0 LLM · Native audio</p>
-            </button>
+                <p className="text-zinc-500 text-xs leading-relaxed">Seedance 1.5 Pro video generation · Seed 2.0 LLM · Native audio</p>
+              </button>
+            </div>
           </div>
         </div>
 

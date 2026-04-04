@@ -3,7 +3,7 @@ import { KeyRound, ExternalLink, Eye, EyeOff, CheckCircle, AlertCircle, Loader2 
 import { useSettings } from '../context/SettingsContext';
 
 export function ApiKeyGate({ children }: { children: React.ReactNode }) {
-  const { provider, customApiKey, setCustomApiKey, arkApiKey, setArkApiKey } = useSettings();
+  const { provider, setProvider, customApiKey, setCustomApiKey, arkApiKey, setArkApiKey } = useSettings();
   const [inputKey, setInputKey] = useState('');
   const [showKey, setShowKey] = useState(false);
   const [error, setError] = useState('');
@@ -100,6 +100,32 @@ export function ApiKeyGate({ children }: { children: React.ReactNode }) {
         </div>
 
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8 shadow-2xl">
+          {/* Provider selector pills */}
+          <div className="flex gap-2 mb-6">
+            <button
+              onClick={() => { setProvider('google'); setInputKey(''); setError(''); }}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-bold uppercase tracking-wider transition-all ${
+                isGoogle
+                  ? 'border-cyan-500 bg-cyan-500/10 text-cyan-400'
+                  : 'border-zinc-700 bg-zinc-800 text-zinc-500 hover:border-zinc-600 hover:text-zinc-400'
+              }`}
+            >
+              <img src="https://www.gstatic.com/images/branding/product/2x/googleg_48dp.png" alt="Google" className="w-3.5 h-3.5" />
+              Google
+            </button>
+            <button
+              onClick={() => { setProvider('bytedance'); setInputKey(''); setError(''); }}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-bold uppercase tracking-wider transition-all ${
+                !isGoogle
+                  ? 'border-orange-500 bg-orange-500/10 text-orange-400'
+                  : 'border-zinc-700 bg-zinc-800 text-zinc-500 hover:border-zinc-600 hover:text-zinc-400'
+              }`}
+            >
+              <span className="text-sm leading-none">火</span>
+              ByteDance
+            </button>
+          </div>
+
           <h2 className="text-white font-black text-xl mb-1">
             {isGoogle ? 'Google AI API Key Required' : 'BytePlus ARK API Key Required'}
           </h2>
@@ -173,24 +199,6 @@ export function ApiKeyGate({ children }: { children: React.ReactNode }) {
             )}
           </div>
 
-          <div className="border-t border-zinc-800 mt-5 pt-4">
-            <p className="text-zinc-600 text-xs mb-3">Want to use a different provider?</p>
-            <button
-              onClick={() => {
-                // Toggle provider in localStorage directly so the gate re-reads it
-                const saved = localStorage.getItem('studioSettings');
-                if (saved) {
-                  const parsed = JSON.parse(saved);
-                  parsed.provider = isGoogle ? 'bytedance' : 'google';
-                  localStorage.setItem('studioSettings', JSON.stringify(parsed));
-                  window.location.reload();
-                }
-              }}
-              className="text-xs font-bold text-zinc-500 hover:text-cyan-400 uppercase tracking-widest transition-colors"
-            >
-              Switch to {isGoogle ? 'ByteDance (Seedance)' : 'Google (Veo / Gemini)'} →
-            </button>
-          </div>
         </div>
 
         <p className="text-center text-zinc-600 text-xs mt-4">

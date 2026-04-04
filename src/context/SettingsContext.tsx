@@ -13,10 +13,12 @@ interface SettingsState {
   // Google
   customApiKey: string;
   useVertexAI: boolean;
+  googleEnabled: boolean;
   // ByteDance
   arkApiKey: string;
   arkDefaultModel: string;
   arkLlmModel: string;
+  bytedanceEnabled: boolean;
 }
 
 const initialState: SettingsState = {
@@ -28,9 +30,11 @@ const initialState: SettingsState = {
   defaultAspectRatio: '16:9',
   customApiKey: '',
   useVertexAI: false,
+  googleEnabled: true,
   arkApiKey: '',
   arkDefaultModel: 'seedance-1-5-pro',
   arkLlmModel: 'seed-2-0-lite-260228',
+  bytedanceEnabled: true,
 };
 
 interface SettingsContextType extends SettingsState {
@@ -43,9 +47,11 @@ interface SettingsContextType extends SettingsState {
   setDefaultAspectRatio: (ratio: string) => void;
   setCustomApiKey: (key: string) => void;
   setUseVertexAI: (val: boolean) => void;
+  setGoogleEnabled: (val: boolean) => void;
   setArkApiKey: (key: string) => void;
   setArkDefaultModel: (model: string) => void;
   setArkLlmModel: (model: string) => void;
+  setBytedanceEnabled: (val: boolean) => void;
   setDirectoryHandle: (handle: FileSystemDirectoryHandle | null) => void;
   resetSettings: () => void;
 }
@@ -98,9 +104,11 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setDefaultAspectRatio: (defaultAspectRatio) => updateState({ defaultAspectRatio }),
       setCustomApiKey: (customApiKey) => updateState({ customApiKey }),
       setUseVertexAI: (useVertexAI) => updateState({ useVertexAI }),
+      setGoogleEnabled: (googleEnabled) => updateState({ googleEnabled }),
       setArkApiKey: (arkApiKey) => updateState({ arkApiKey }),
       setArkDefaultModel: (arkDefaultModel) => updateState({ arkDefaultModel }),
       setArkLlmModel: (arkLlmModel) => updateState({ arkLlmModel }),
+      setBytedanceEnabled: (bytedanceEnabled) => updateState({ bytedanceEnabled }),
       setDirectoryHandle: (handle) => setDirectoryHandle(handle),
       resetSettings: () => {
         setState(initialState);

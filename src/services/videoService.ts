@@ -5,20 +5,34 @@
 import * as veo from './veoService';
 import * as seedance from './bytedanceVideoService';
 
-function getProvider(): 'google' | 'bytedance' {
+function getSettings(): { provider: 'google' | 'bytedance'; googleEnabled: boolean; bytedanceEnabled: boolean } {
   try {
     const saved = localStorage.getItem('studioSettings');
-    if (saved) return JSON.parse(saved).provider ?? 'google';
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return {
+        provider: parsed.provider ?? 'google',
+        googleEnabled: parsed.googleEnabled !== false,
+        bytedanceEnabled: parsed.bytedanceEnabled !== false,
+      };
+    }
   } catch {}
-  return 'google';
+  return { provider: 'google', googleEnabled: true, bytedanceEnabled: true };
+}
+
+function getProvider(): 'google' | 'bytedance' {
+  return getSettings().provider;
 }
 
 export function generateVideo(
   ...args: Parameters<typeof veo.generateVideo>
 ): ReturnType<typeof veo.generateVideo> {
-  if (getProvider() === 'bytedance') {
+  const { provider, googleEnabled, bytedanceEnabled } = getSettings();
+  if (provider === 'bytedance') {
+    if (!bytedanceEnabled) throw new Error('ByteDance provider is disabled. Enable it in Settings → AI Provider.');
     return seedance.generateVideo(...args);
   }
+  if (!googleEnabled) throw new Error('Google provider is disabled. Enable it in Settings → AI Provider.');
   return veo.generateVideo(...args);
 }
 
