@@ -22,7 +22,10 @@ serve(async (req) => {
     if (!modelId) return new Response(JSON.stringify({ error: 'modelId (ep-xxxx) is required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 
     // Build inline-flag prompt (BytePlus Seedance format)
-    const textWithFlags = `${prompt} --ratio ${ratio ?? '16:9'} --resolution ${resolution ?? '720p'} --duration ${duration ?? 5} --camerafixed false`
+    // --audio is only supported by Seedance 1.5 Pro; omit for 1.0 models to avoid API rejection
+    const isAudioSupported = (modelId as string).includes('1-5')
+    const audioFlag = isAudioSupported ? '--audio true' : ''
+    const textWithFlags = `${prompt} --ratio ${ratio ?? '16:9'} --resolution ${resolution ?? '720p'} --duration ${duration ?? 5} --camerafixed false ${audioFlag}`.trim()
 
     const content: object[] = []
     if (image) {
