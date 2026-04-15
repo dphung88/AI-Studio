@@ -35,17 +35,10 @@ export const getArkApiKey = (): string => {
   return (import.meta.env as any).VITE_ARK_API_KEY || '';
 };
 
-// Returns custom inference endpoint ID if set, otherwise falls back to SEEDANCE_MODEL_MAP lookup
+// Returns model ID for the given UI model key.
+// Custom endpoint in Settings is a per-session override for ALL models (advanced use only).
+// By default, each model uses its versioned name from SEEDANCE_MODEL_MAP.
 export const getArkVideoEndpoint = (uiModel: string): string => {
-  try {
-    const saved = localStorage.getItem('studioSettings');
-    if (saved) {
-      const s = JSON.parse(saved);
-      if (s.arkVideoEndpoint && s.arkVideoEndpoint.trim()) {
-        return s.arkVideoEndpoint.trim();
-      }
-    }
-  } catch (_) {}
   return SEEDANCE_MODEL_MAP[uiModel] ?? uiModel;
 };
 
@@ -74,22 +67,7 @@ export const seedanceStart = async (
   const rawModel = options.model ?? 'seedance-1-5-pro';
   const modelId = getArkVideoEndpoint(rawModel);
 
-  // Validate ep-xxxx endpoint is configured (BytePlus requires it for video generation)
-  if (!modelId || modelId === SEEDANCE_MODEL_MAP[rawModel]) {
-    const hasCustomEndpoint = (() => {
-      try {
-        const s = JSON.parse(localStorage.getItem('studioSettings') || '{}');
-        return !!(s.arkVideoEndpoint && s.arkVideoEndpoint.trim());
-      } catch { return false; }
-    })();
-    if (!hasCustomEndpoint) {
-      throw new Error(
-        'BytePlus requires a custom inference endpoint for video generation. ' +
-        'Go to Settings → ByteDance → "Seedance Video Endpoint ID" and enter your ep-xxxx ID. ' +
-        '(BytePlus Console → Online Inference → Create Endpoint → copy the ep-xxxx ID)'
-      );
-    }
-  }
+  if (!modelId) throw new Error('Could not resolve Seedance model ID.');
 
   // Route through Supabase Edge Function to avoid CORS
   const edgeUrl = getEdgeUrl();
