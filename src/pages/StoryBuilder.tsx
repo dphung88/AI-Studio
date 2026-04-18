@@ -124,13 +124,13 @@ export function StoryBuilder() {
           {/* Provider toggle */}
           <div className="flex bg-zinc-950 rounded-xl p-1.5 border border-zinc-800">
             <button
-              onClick={() => setProvider('google')}
+              onClick={() => { setProvider('google'); setVeoModel('veo-3.1-fast-generate-preview'); }}
               className={`px-4 py-2 rounded-lg text-xs font-black transition-all ${provider === 'google' ? 'bg-zinc-800 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
             >
               Google
             </button>
             <button
-              onClick={() => setProvider('bytedance')}
+              onClick={() => { setProvider('bytedance'); setVeoModel('seedance-1-5-pro'); }}
               className={`px-4 py-2 rounded-lg text-xs font-black transition-all ${provider === 'bytedance' ? 'bg-zinc-800 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
             >
               Seedance
